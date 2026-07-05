@@ -7,4 +7,5 @@ global using System.Globalization;
 global using System.Linq;
 global using System.Reflection;
 global using Avalonia;
+global using Avalonia.Input;
 global using Avalonia.Media;
