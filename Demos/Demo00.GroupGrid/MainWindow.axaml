@@ -8,5 +8,21 @@
         Width="1100"
         Height="720"
         Title="Demo00.GroupGrid">
-    <controls:GroupGrid x:Name="Grid" />
+    <DockPanel>
+        <StackPanel DockPanel.Dock="Top"
+                    Orientation="Horizontal"
+                    Margin="8"
+                    Spacing="8">
+            <ComboBox x:Name="SourceComboBox"
+                      Width="180"
+                      SelectionChanged="SourceComboBox_SelectionChanged">
+                <ComboBoxItem>POCO List</ComboBoxItem>
+                <ComboBoxItem>DataTable</ComboBoxItem>
+                <ComboBoxItem>DataView</ComboBoxItem>
+            </ComboBox>
+            <Button Content="Clear"
+                    Click="ClearButton_Click" />
+        </StackPanel>
+        <controls:GroupGrid x:Name="Grid" />
+    </DockPanel>
 </Window>

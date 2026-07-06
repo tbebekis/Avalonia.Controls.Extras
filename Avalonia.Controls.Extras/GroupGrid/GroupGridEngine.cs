@@ -8,12 +8,16 @@ public class GroupGridEngine
     // ● private fields
     readonly GroupGridNodeProjection fProjection = new();
     readonly ObservableCollection<GroupGridColumn> fGroupColumns = new();
+    readonly Dictionary<GroupGridColumn, string> fColumnFilters = new();
     IGroupGridDataAdapter fDataAdapter;
     GroupGridCell fCurrentCell = GroupGridCell.Empty;
     GroupGridCell fSelectedCell = GroupGridCell.Empty;
     GroupGridCell fEditingCell = GroupGridCell.Empty;
     GroupGridViewport fViewport = GroupGridViewport.Empty;
     double fBodyHeight;
+    bool fIsReadOnly;
+    GroupGridColumn fSortColumn;
+    GroupGridSortDirection fSortDirection;
 
     // ● private methods
     void Columns_CollectionChanged(object Sender, NotifyCollectionChangedEventArgs Args)
@@ -21,17 +25,29 @@ public class GroupGridEngine
         if (Args.Action == NotifyCollectionChangedAction.Reset)
         {
             fGroupColumns.Clear();
+            ClearFilters();
+            ClearSort();
         }
         else if (Args.Action == NotifyCollectionChangedAction.Remove && Args.OldItems != null)
         {
             foreach (GroupGridColumn Column in Args.OldItems)
+            {
                 fGroupColumns.Remove(Column);
+                ClearColumnFilter(Column);
+                if (ReferenceEquals(fSortColumn, Column))
+                    ClearSort();
+            }
         }
         else if (Args.Action == NotifyCollectionChangedAction.Replace && Args.OldItems != null)
         {
             foreach (GroupGridColumn Column in Args.OldItems)
                 if (!Columns.Contains(Column))
+                {
                     fGroupColumns.Remove(Column);
+                    ClearColumnFilter(Column);
+                    if (ReferenceEquals(fSortColumn, Column))
+                        ClearSort();
+                }
         }
 
         ColumnsChanged?.Invoke(this, EventArgs.Empty);
@@ -54,7 +70,9 @@ public class GroupGridEngine
             || Args.Kind == GroupGridDataChangeKind.RowRemoved
             || Args.Kind == GroupGridDataChangeKind.RowMoved
             || Args.Kind == GroupGridDataChangeKind.RowChanged
-            || (Args.Kind == GroupGridDataChangeKind.CellChanged && IsGroupedColumnName(Args.ColumnName)))
+            || (Args.Kind == GroupGridDataChangeKind.CellChanged && IsGroupedColumnName(Args.ColumnName))
+            || (Args.Kind == GroupGridDataChangeKind.CellChanged && IsFilteredColumnName(Args.ColumnName))
+            || (Args.Kind == GroupGridDataChangeKind.CellChanged && IsSortedColumnName(Args.ColumnName)))
         {
             RebuildProjection();
             CoerceCurrentCell();
@@ -125,7 +143,8 @@ public class GroupGridEngine
     }
     bool IsValidEditableCell(GroupGridCell Cell)
     {
-        return IsValidValueCell(Cell)
+        return !fIsReadOnly
+               && IsValidValueCell(Cell)
                && !Cell.Column.IsReadOnly
                && CanSetValue(Cell.RowIndex, Cell.Column);
     }
@@ -272,6 +291,180 @@ public class GroupGridEngine
 
         return false;
     }
+    bool IsSortedColumnName(string ColumnName)
+    {
+        return fSortColumn != null
+               && !string.IsNullOrWhiteSpace(ColumnName)
+               && string.Equals(fSortColumn.Name, ColumnName, StringComparison.OrdinalIgnoreCase);
+    }
+    bool IsFilteredColumnName(string ColumnName)
+    {
+        if (string.IsNullOrWhiteSpace(ColumnName))
+            return false;
+
+        foreach (GroupGridColumn Column in fColumnFilters.Keys)
+            if (string.Equals(Column.Name, ColumnName, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+        return false;
+    }
+    bool ContainsFilterText(object Value, GroupGridColumn Column, string FilterText)
+    {
+        string Text = Column.FormatValue(Value);
+        return CultureInfo.CurrentCulture.CompareInfo.IndexOf(Text, FilterText, CompareOptions.IgnoreCase) >= 0;
+    }
+    bool MatchesWildcardFilterText(object Value, GroupGridColumn Column, string FilterText)
+    {
+        string Text = Column.FormatValue(Value);
+        string Pattern = FilterText.Replace('%', '*');
+        if (!Pattern.Contains('*'))
+            Pattern = "*" + Pattern + "*";
+
+        string[] Parts = Pattern.Split('*');
+        int Index = 0;
+        bool StartsWithWildcard = Pattern.StartsWith("*", StringComparison.Ordinal);
+        bool EndsWithWildcard = Pattern.EndsWith("*", StringComparison.Ordinal);
+
+        foreach (string Part in Parts)
+        {
+            if (Part.Length == 0)
+                continue;
+
+            int FoundIndex = CultureInfo.CurrentCulture.CompareInfo.IndexOf(Text, Part, Index, CompareOptions.IgnoreCase);
+            if (FoundIndex < 0)
+                return false;
+            if (Index == 0 && !StartsWithWildcard && FoundIndex != 0)
+                return false;
+
+            Index = FoundIndex + Part.Length;
+        }
+
+        string LastPart = Parts.LastOrDefault(Part => Part.Length > 0);
+        return EndsWithWildcard
+               || string.IsNullOrEmpty(LastPart)
+               || Text.EndsWith(LastPart, StringComparison.CurrentCultureIgnoreCase);
+    }
+    bool TryParseFilterValue(string Text, GroupGridColumn Column, out object Value)
+    {
+        Value = null;
+        if (Column == null)
+            return false;
+
+        try
+        {
+            Value = Column.ParseValue(Text);
+            return true;
+        }
+        catch
+        {
+            // Invalid filter values do not match any rows.
+            return false;
+        }
+    }
+    bool MatchesComparisonFilter(object Value, GroupGridColumn Column, string Operator, string FilterText)
+    {
+        if (!TryParseFilterValue(FilterText, Column, out object FilterValue))
+            return false;
+
+        int CompareResult = CompareValues(Value, FilterValue);
+        switch (Operator)
+        {
+            case ">":
+                return CompareResult > 0;
+            case ">=":
+                return CompareResult >= 0;
+            case "<":
+                return CompareResult < 0;
+            case "<=":
+                return CompareResult <= 0;
+            case "=":
+                return CompareResult == 0;
+            case "<>":
+            case "!=":
+                return CompareResult != 0;
+        }
+
+        return false;
+    }
+    bool TryReadFilterOperator(string FilterText, out string Operator, out string Operand)
+    {
+        Operator = string.Empty;
+        Operand = string.Empty;
+        string Text = FilterText.Trim();
+        string[] Operators = { ">=", "<=", "<>", "!=", ">", "<", "=" };
+        foreach (string Item in Operators)
+            if (Text.StartsWith(Item, StringComparison.Ordinal))
+            {
+                Operator = Item;
+                Operand = Text.Substring(Item.Length).Trim();
+                return true;
+            }
+
+        return false;
+    }
+    bool MatchesFilter(object Value, GroupGridColumn Column, string FilterText)
+    {
+        if (string.IsNullOrWhiteSpace(FilterText))
+            return true;
+
+        if (TryReadFilterOperator(FilterText, out string Operator, out string Operand))
+            return MatchesComparisonFilter(Value, Column, Operator, Operand);
+        if (FilterText.Contains('%') || FilterText.Contains('*'))
+            return MatchesWildcardFilterText(Value, Column, FilterText);
+
+        return ContainsFilterText(Value, Column, FilterText);
+    }
+    bool RowPassesFilters(int RowIndex)
+    {
+        if (fColumnFilters.Count == 0)
+            return true;
+
+        foreach (KeyValuePair<GroupGridColumn, string> Entry in fColumnFilters)
+            if (!MatchesFilter(GetValue(RowIndex, Entry.Key), Entry.Key, Entry.Value))
+                return false;
+
+        return true;
+    }
+    int CompareValues(object Left, object Right)
+    {
+        if (Left == DBNull.Value)
+            Left = null;
+        if (Right == DBNull.Value)
+            Right = null;
+        if (Left == null && Right == null)
+            return 0;
+        if (Left == null)
+            return -1;
+        if (Right == null)
+            return 1;
+        if (Left is IComparable Comparable)
+            return Comparable.CompareTo(Right);
+
+        return string.Compare(Convert.ToString(Left, CultureInfo.CurrentCulture), Convert.ToString(Right, CultureInfo.CurrentCulture), StringComparison.CurrentCulture);
+    }
+    int CompareRows(int LeftRowIndex, int RightRowIndex)
+    {
+        int Result = CompareValues(GetValue(LeftRowIndex, fSortColumn), GetValue(RightRowIndex, fSortColumn));
+        if (fSortDirection == GroupGridSortDirection.Descending)
+            Result = -Result;
+
+        return Result == 0 ? LeftRowIndex.CompareTo(RightRowIndex) : Result;
+    }
+    IReadOnlyList<int> GetProjectionRowIndexes()
+    {
+        if (fDataAdapter == null)
+            return null;
+        if (fColumnFilters.Count == 0 && (fSortColumn == null || fSortDirection == GroupGridSortDirection.None))
+            return null;
+
+        List<int> Result = Enumerable.Range(0, fDataAdapter.RowCount)
+            .Where(RowPassesFilters)
+            .ToList();
+        if (fSortColumn != null && fSortDirection != GroupGridSortDirection.None)
+            Result.Sort(CompareRows);
+
+        return Result;
+    }
     GroupGridRowInfo CreateRowInfo(GroupGridNode Node, int VisibleNodeIndex)
     {
         if (Node == null)
@@ -388,7 +581,7 @@ public class GroupGridEngine
     /// </summary>
     public void RebuildProjection()
     {
-        fProjection.Rebuild(fDataAdapter, fGroupColumns);
+        fProjection.Rebuild(fDataAdapter, fGroupColumns, GetProjectionRowIndexes());
         CalculateSummaries();
         VisibleNodesChanged?.Invoke(this, EventArgs.Empty);
         SummariesChanged?.Invoke(this, EventArgs.Empty);
@@ -706,7 +899,128 @@ public class GroupGridEngine
             ClearSelection();
         if (!fEditingCell.IsEmpty && ReferenceEquals(fEditingCell.Column, Column) && !IsVisible)
             CancelEdit();
+        if (!IsVisible)
+            ClearColumnFilter(Column);
+        if (!IsVisible && ReferenceEquals(fSortColumn, Column))
+            ClearSort();
 
+        return true;
+    }
+    /// <summary>
+    /// Returns the text filter applied to a column.
+    /// </summary>
+    /// <param name="Column">The grid column.</param>
+    /// <returns>The filter text, or an empty string when no filter is applied.</returns>
+    public string GetColumnFilter(GroupGridColumn Column)
+    {
+        return Column != null && fColumnFilters.TryGetValue(Column, out string Result) ? Result : string.Empty;
+    }
+    /// <summary>
+    /// Sets the contains-text filter for a column.
+    /// </summary>
+    /// <param name="Column">The grid column.</param>
+    /// <param name="FilterText">The filter text.</param>
+    /// <returns>True if the filter changed; otherwise, false.</returns>
+    public bool SetColumnFilter(GroupGridColumn Column, string FilterText)
+    {
+        if (Column == null || !Columns.Contains(Column))
+            return false;
+
+        FilterText = FilterText ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(FilterText))
+            return ClearColumnFilter(Column);
+
+        if (fColumnFilters.TryGetValue(Column, out string OldText) && OldText == FilterText)
+            return false;
+
+        fColumnFilters[Column] = FilterText;
+        RebuildProjection();
+        CoerceCurrentCell();
+        CoerceSelectedCell();
+        CoerceEditingCell();
+        FiltersChanged?.Invoke(this, EventArgs.Empty);
+        return true;
+    }
+    /// <summary>
+    /// Clears the text filter for a column.
+    /// </summary>
+    /// <param name="Column">The grid column.</param>
+    /// <returns>True if the filter changed; otherwise, false.</returns>
+    public bool ClearColumnFilter(GroupGridColumn Column)
+    {
+        if (Column == null || !fColumnFilters.Remove(Column))
+            return false;
+
+        RebuildProjection();
+        CoerceCurrentCell();
+        CoerceSelectedCell();
+        CoerceEditingCell();
+        FiltersChanged?.Invoke(this, EventArgs.Empty);
+        return true;
+    }
+    /// <summary>
+    /// Clears all column filters.
+    /// </summary>
+    /// <returns>True if any filter was cleared; otherwise, false.</returns>
+    public bool ClearFilters()
+    {
+        if (fColumnFilters.Count == 0)
+            return false;
+
+        fColumnFilters.Clear();
+        RebuildProjection();
+        CoerceCurrentCell();
+        CoerceSelectedCell();
+        CoerceEditingCell();
+        FiltersChanged?.Invoke(this, EventArgs.Empty);
+        return true;
+    }
+    /// <summary>
+    /// Clears the active column sorting.
+    /// </summary>
+    /// <returns>True if sorting changed; otherwise, false.</returns>
+    public bool ClearSort()
+    {
+        if (fSortColumn == null && fSortDirection == GroupGridSortDirection.None)
+            return false;
+
+        fSortColumn = null;
+        fSortDirection = GroupGridSortDirection.None;
+        RebuildProjection();
+        SortingChanged?.Invoke(this, EventArgs.Empty);
+        return true;
+    }
+    /// <summary>
+    /// Toggles sorting for a column using the None, Ascending, Descending cycle.
+    /// </summary>
+    /// <param name="Column">The column to sort by.</param>
+    /// <returns>True if sorting changed; otherwise, false.</returns>
+    public bool ToggleSort(GroupGridColumn Column)
+    {
+        if (Column == null || !Columns.Contains(Column))
+            return false;
+
+        if (!ReferenceEquals(fSortColumn, Column))
+        {
+            fSortColumn = Column;
+            fSortDirection = GroupGridSortDirection.Ascending;
+        }
+        else if (fSortDirection == GroupGridSortDirection.None)
+        {
+            fSortDirection = GroupGridSortDirection.Ascending;
+        }
+        else if (fSortDirection == GroupGridSortDirection.Ascending)
+        {
+            fSortDirection = GroupGridSortDirection.Descending;
+        }
+        else
+        {
+            fSortColumn = null;
+            fSortDirection = GroupGridSortDirection.None;
+        }
+
+        RebuildProjection();
+        SortingChanged?.Invoke(this, EventArgs.Empty);
         return true;
     }
     /// <summary>
@@ -1096,7 +1410,7 @@ public class GroupGridEngine
     /// <param name="Value">The value to set.</param>
     public void SetValue(int RowIndex, GroupGridColumn Column, object Value)
     {
-        if (fDataAdapter != null && fDataAdapter.CanSetValue(RowIndex, Column))
+        if (!fIsReadOnly && fDataAdapter != null && fDataAdapter.CanSetValue(RowIndex, Column))
             fDataAdapter.SetValue(RowIndex, Column, Value);
     }
     /// <summary>
@@ -1107,7 +1421,84 @@ public class GroupGridEngine
     /// <returns>True when the cell value can be set; otherwise, false.</returns>
     public bool CanSetValue(int RowIndex, GroupGridColumn Column)
     {
-        return fDataAdapter != null && fDataAdapter.CanSetValue(RowIndex, Column);
+        return !fIsReadOnly && fDataAdapter != null && fDataAdapter.CanSetValue(RowIndex, Column);
+    }
+    /// <summary>
+    /// Returns true when a new row can be inserted after the current row.
+    /// </summary>
+    /// <returns>True when a row can be inserted; otherwise, false.</returns>
+    public bool CanInsertRow()
+    {
+        int RowIndex = fCurrentCell.IsEmpty ? -1 : fCurrentCell.RowIndex;
+        return !fIsReadOnly && fDataAdapter != null && fDataAdapter.CanInsertRow(RowIndex);
+    }
+    /// <summary>
+    /// Inserts a new row after the current row.
+    /// </summary>
+    /// <returns>True if a row was inserted; otherwise, false.</returns>
+    public bool InsertRow()
+    {
+        int RowIndex = fCurrentCell.IsEmpty ? -1 : fCurrentCell.RowIndex;
+        if (!CanInsertRow())
+            return false;
+
+        GroupGridRowOperationEventArgs Args = new(RowIndex, RowIndex >= 0 ? fDataAdapter.GetRow(RowIndex) : null);
+        InsertingRow?.Invoke(this, Args);
+        if (Args.Cancel)
+            return false;
+
+        int NewRowIndex = fDataAdapter.InsertRow(RowIndex);
+        if (NewRowIndex < 0)
+            return false;
+
+        GroupGridColumn Column = fCurrentCell.IsEmpty ? GetFirstValueColumn() : fCurrentCell.Column;
+        if (Column != null)
+        {
+            SetCurrentCell(NewRowIndex, Column);
+            SelectCurrentCell();
+        }
+
+        RowInserted?.Invoke(this, new GroupGridRowOperationEventArgs(NewRowIndex, fDataAdapter.GetRow(NewRowIndex)));
+        return true;
+    }
+    /// <summary>
+    /// Returns true when the current row can be deleted.
+    /// </summary>
+    /// <returns>True when the current row can be deleted; otherwise, false.</returns>
+    public bool CanDeleteCurrentRow()
+    {
+        return !fIsReadOnly && !fCurrentCell.IsEmpty && fDataAdapter != null && fDataAdapter.CanDeleteRow(fCurrentCell.RowIndex);
+    }
+    /// <summary>
+    /// Deletes the current row.
+    /// </summary>
+    /// <returns>True if a row was deleted; otherwise, false.</returns>
+    public bool DeleteCurrentRow()
+    {
+        if (!CanDeleteCurrentRow())
+            return false;
+
+        int RowIndex = fCurrentCell.RowIndex;
+        object Row = fDataAdapter.GetRow(RowIndex);
+        GroupGridRowOperationEventArgs Args = new(RowIndex, Row);
+        DeletingRow?.Invoke(this, Args);
+        if (Args.Cancel)
+            return false;
+
+        if (!fDataAdapter.DeleteRow(RowIndex))
+            return false;
+
+        ClearCurrentCell();
+        ClearSelection();
+        RowDeleted?.Invoke(this, new GroupGridRowOperationEventArgs(RowIndex, Row));
+        return true;
+    }
+    /// <summary>
+    /// Raises the edit requested event.
+    /// </summary>
+    public void RequestEdit()
+    {
+        EditRequested?.Invoke(this, EventArgs.Empty);
     }
     /// <summary>
     /// Sets the viewport window into the logical visible-node list.
@@ -1161,6 +1552,21 @@ public class GroupGridEngine
         set => SetDataAdapter(value);
     }
     /// <summary>
+    /// Gets or sets a value indicating whether editing is disabled for the whole grid.
+    /// </summary>
+    public bool IsReadOnly
+    {
+        get => fIsReadOnly;
+        set
+        {
+            if (fIsReadOnly == value)
+                return;
+
+            fIsReadOnly = value;
+            CoerceEditingCell();
+        }
+    }
+    /// <summary>
     /// Gets the current cell.
     /// </summary>
     public GroupGridCell CurrentCell => fCurrentCell;
@@ -1208,6 +1614,22 @@ public class GroupGridEngine
     /// Gets the number of grouped columns.
     /// </summary>
     public int GroupColumnCount => fGroupColumns.Count;
+    /// <summary>
+    /// Gets the sorted column, or null when sorting is not active.
+    /// </summary>
+    public GroupGridColumn SortColumn => fSortColumn;
+    /// <summary>
+    /// Gets the active sort direction.
+    /// </summary>
+    public GroupGridSortDirection SortDirection => fSortDirection;
+    /// <summary>
+    /// Gets the number of active column filters.
+    /// </summary>
+    public int FilterCount => fColumnFilters.Count;
+    /// <summary>
+    /// Gets a value indicating whether any column filter is active.
+    /// </summary>
+    public bool HasFilters => fColumnFilters.Count > 0;
     /// <summary>
     /// Gets the viewport window into the logical visible-node list.
     /// </summary>
@@ -1295,4 +1717,32 @@ public class GroupGridEngine
     /// Occurs when summary values change.
     /// </summary>
     public event EventHandler SummariesChanged;
+    /// <summary>
+    /// Occurs when column sorting changes.
+    /// </summary>
+    public event EventHandler SortingChanged;
+    /// <summary>
+    /// Occurs when column filters change.
+    /// </summary>
+    public event EventHandler FiltersChanged;
+    /// <summary>
+    /// Occurs before a row is inserted.
+    /// </summary>
+    public event EventHandler<GroupGridRowOperationEventArgs> InsertingRow;
+    /// <summary>
+    /// Occurs after a row is inserted.
+    /// </summary>
+    public event EventHandler<GroupGridRowOperationEventArgs> RowInserted;
+    /// <summary>
+    /// Occurs before a row is deleted.
+    /// </summary>
+    public event EventHandler<GroupGridRowOperationEventArgs> DeletingRow;
+    /// <summary>
+    /// Occurs after a row is deleted.
+    /// </summary>
+    public event EventHandler<GroupGridRowOperationEventArgs> RowDeleted;
+    /// <summary>
+    /// Occurs when edit is requested by a toolbar command.
+    /// </summary>
+    public event EventHandler EditRequested;
 }

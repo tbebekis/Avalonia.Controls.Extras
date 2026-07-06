@@ -113,6 +113,49 @@ public class GroupGridListDataAdapter<T>: IGroupGridDataAdapter, IDisposable
         PropertyInfo Property = FindProperty(Column);
         return Property != null && Property.CanWrite && Column != null && !Column.IsReadOnly;
     }
+    /// <inheritdoc />
+    public bool CanInsertRow(int RowIndex)
+    {
+        return !typeof(T).IsAbstract && typeof(T).GetConstructor(Type.EmptyTypes) != null;
+    }
+    /// <inheritdoc />
+    public int InsertRow(int RowIndex)
+    {
+        if (!CanInsertRow(RowIndex))
+            return -1;
+
+        int NewIndex = Math.Clamp(RowIndex + 1, 0, fItems.Count);
+        T Item = (T)Activator.CreateInstance(typeof(T));
+        fItems.Insert(NewIndex, Item);
+        if (fItems is not INotifyCollectionChanged)
+        {
+            SubscribeRows(new[] { Item });
+            Changed?.Invoke(this, GroupGridDataChangedEventArgs.RowAdded(NewIndex));
+        }
+
+        return NewIndex;
+    }
+    /// <inheritdoc />
+    public bool CanDeleteRow(int RowIndex)
+    {
+        return RowIndex >= 0 && RowIndex < fItems.Count;
+    }
+    /// <inheritdoc />
+    public bool DeleteRow(int RowIndex)
+    {
+        if (!CanDeleteRow(RowIndex))
+            return false;
+
+        T Item = fItems[RowIndex];
+        fItems.RemoveAt(RowIndex);
+        if (fItems is not INotifyCollectionChanged)
+        {
+            UnsubscribeRows(new[] { Item });
+            Changed?.Invoke(this, GroupGridDataChangedEventArgs.RowRemoved(RowIndex));
+        }
+
+        return true;
+    }
     /// <summary>
     /// Releases subscriptions held by this adapter.
     /// </summary>

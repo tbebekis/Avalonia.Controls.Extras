@@ -19,17 +19,23 @@ internal class GroupGridNodeProjection
         Parent.Add(Result);
         return Result;
     }
-    void BuildUngrouped(IGroupGridDataAdapter Adapter)
+    List<int> CreateRowIndexes(IGroupGridDataAdapter Adapter, IReadOnlyList<int> RowIndexes)
     {
-        for (int Index = 0; Index < Adapter.RowCount; Index++)
+        return RowIndexes == null
+            ? Enumerable.Range(0, Adapter.RowCount).ToList()
+            : RowIndexes.ToList();
+    }
+    void BuildUngrouped(IGroupGridDataAdapter Adapter, IReadOnlyList<int> RowIndexes)
+    {
+        foreach (int Index in CreateRowIndexes(Adapter, RowIndexes))
         {
             GroupGridNode Node = new(GroupGridNodeKind.DataRow, Root, Index, Adapter.GetRow(Index));
             Root.Add(Node);
         }
     }
-    void BuildGrouped(IGroupGridDataAdapter Adapter, IReadOnlyList<GroupGridColumn> GroupColumns)
+    void BuildGrouped(IGroupGridDataAdapter Adapter, IReadOnlyList<GroupGridColumn> GroupColumns, IReadOnlyList<int> RowIndexes)
     {
-        for (int RowIndex = 0; RowIndex < Adapter.RowCount; RowIndex++)
+        foreach (int RowIndex in CreateRowIndexes(Adapter, RowIndexes))
         {
             GroupGridNode Parent = Root;
 
@@ -69,7 +75,7 @@ internal class GroupGridNodeProjection
     /// Rebuilds the projection from a data adapter.
     /// </summary>
     /// <param name="Adapter">The data adapter.</param>
-    public void Rebuild(IGroupGridDataAdapter Adapter, IReadOnlyList<GroupGridColumn> GroupColumns)
+    public void Rebuild(IGroupGridDataAdapter Adapter, IReadOnlyList<GroupGridColumn> GroupColumns, IReadOnlyList<int> RowIndexes = null)
     {
         Root.Clear();
         fVisibleNodes.Clear();
@@ -78,9 +84,9 @@ internal class GroupGridNodeProjection
             return;
 
         if (GroupColumns == null || GroupColumns.Count == 0)
-            BuildUngrouped(Adapter);
+            BuildUngrouped(Adapter, RowIndexes);
         else
-            BuildGrouped(Adapter, GroupColumns);
+            BuildGrouped(Adapter, GroupColumns, RowIndexes);
 
         Root.AddVisibleNodesTo(fVisibleNodes);
     }

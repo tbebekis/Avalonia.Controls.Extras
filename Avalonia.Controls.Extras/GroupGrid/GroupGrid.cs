@@ -8,9 +8,14 @@ public class GroupGrid: Control
     // ● private fields
     static readonly IBrush fBackgroundBrush = new SolidColorBrush(Color.FromRgb(255, 255, 255));
     static readonly IBrush fToolBarBrush = new SolidColorBrush(Color.FromRgb(246, 247, 248));
+    static readonly IBrush fToolButtonBrush = new SolidColorBrush(Color.FromRgb(255, 255, 255));
+    static readonly IBrush fToolButtonHoverBrush = new SolidColorBrush(Color.FromRgb(235, 241, 248));
+    static readonly IBrush fDisabledTextBrush = new SolidColorBrush(Color.FromRgb(150, 156, 164));
     static readonly IBrush fGroupPanelBrush = new SolidColorBrush(Color.FromRgb(235, 239, 244));
     static readonly IBrush fHeaderBrush = new SolidColorBrush(Color.FromRgb(241, 243, 245));
     static readonly IBrush fFilterBrush = new SolidColorBrush(Color.FromRgb(250, 250, 250));
+    static readonly IBrush fFilteredCellBrush = new SolidColorBrush(Color.FromRgb(255, 250, 228));
+    static readonly IBrush fActiveFilterBrush = new SolidColorBrush(Color.FromRgb(255, 246, 211));
     static readonly IBrush fGroupRowBrush = new SolidColorBrush(Color.FromRgb(232, 238, 246));
     static readonly IBrush fGroupSummaryBrush = new SolidColorBrush(Color.FromRgb(247, 249, 252));
     static readonly IBrush fSelectedBrush = new SolidColorBrush(Color.FromRgb(218, 236, 255));
@@ -26,6 +31,10 @@ public class GroupGrid: Control
     static readonly Pen fCurrentPen = new(new SolidColorBrush(Color.FromRgb(64, 122, 190)), 1);
     static readonly Pen fEditingPen = new(new SolidColorBrush(Color.FromRgb(194, 105, 0)), 2);
     static readonly Pen fResizePen = new(new SolidColorBrush(Color.FromRgb(80, 120, 170)), 1);
+    const string InsertToolButtonName = "Insert";
+    const string DeleteToolButtonName = "Delete";
+    const string EditToolButtonName = "Edit";
+    readonly ObservableCollection<GroupGridToolButton> fToolButtons = new();
     GroupGridEngine fEngine;
     object fItemsSource;
     IDisposable fOwnedDataAdapter;
@@ -36,7 +45,15 @@ public class GroupGrid: Control
     bool fIsColumnResizing;
     bool fIsColumnDragging;
     bool fIsColumnDragActive;
+    bool fIsDeleteConfirmationOpen;
+    bool fIsToolBarVisible = true;
+    bool fIsFilterPanelVisible = true;
+    bool fIsColumnHeadersVisible = true;
+    bool fIsGroupPanelVisible = true;
+    bool fIsTotalsSummaryVisible = true;
+    GroupGridToolButton fPointerOverToolButton;
     bool fColumnDragFromGroupPanel;
+    bool fIsColumnManagerMenuItemVisible = true;
     double fVerticalScrollDragOffset;
     double fHorizontalScrollDragOffset;
     double fHorizontalOffset;
@@ -52,13 +69,38 @@ public class GroupGrid: Control
     int fColumnDragGroupDropIndex = -1;
     int fColumnDragSourceGroupIndex = -1;
     GroupGridColumn fColumnDragColumn;
+    GroupGridColumn fFilterEditColumn;
+    string fFilterEditText = string.Empty;
+    string fCellEditText = string.Empty;
     bool fHasHorizontalScrollBar;
 
     // ● private methods
     void Engine_Changed(object Sender, EventArgs Args)
     {
+        if (fEngine != null && !fEngine.IsEditing)
+            fCellEditText = string.Empty;
         UpdateViewport(Bounds.Size);
         InvalidateVisual();
+    }
+    void Engine_InsertingRow(object Sender, GroupGridRowOperationEventArgs Args)
+    {
+        InsertingRow?.Invoke(this, Args);
+    }
+    void Engine_RowInserted(object Sender, GroupGridRowOperationEventArgs Args)
+    {
+        RowInserted?.Invoke(this, Args);
+    }
+    void Engine_DeletingRow(object Sender, GroupGridRowOperationEventArgs Args)
+    {
+        DeletingRow?.Invoke(this, Args);
+    }
+    void Engine_RowDeleted(object Sender, GroupGridRowOperationEventArgs Args)
+    {
+        RowDeleted?.Invoke(this, Args);
+    }
+    void Engine_EditRequested(object Sender, EventArgs Args)
+    {
+        EditRequested?.Invoke(this, Args);
     }
     void AttachEngine(GroupGridEngine Engine)
     {
@@ -76,6 +118,13 @@ public class GroupGrid: Control
         Engine.EditingCellChanged += Engine_Changed;
         Engine.ViewportChanged += Engine_Changed;
         Engine.SummariesChanged += Engine_Changed;
+        Engine.SortingChanged += Engine_Changed;
+        Engine.FiltersChanged += Engine_Changed;
+        Engine.InsertingRow += Engine_InsertingRow;
+        Engine.RowInserted += Engine_RowInserted;
+        Engine.DeletingRow += Engine_DeletingRow;
+        Engine.RowDeleted += Engine_RowDeleted;
+        Engine.EditRequested += Engine_EditRequested;
     }
     void DetachEngine(GroupGridEngine Engine)
     {
@@ -93,6 +142,74 @@ public class GroupGrid: Control
         Engine.EditingCellChanged -= Engine_Changed;
         Engine.ViewportChanged -= Engine_Changed;
         Engine.SummariesChanged -= Engine_Changed;
+        Engine.SortingChanged -= Engine_Changed;
+        Engine.FiltersChanged -= Engine_Changed;
+        Engine.InsertingRow -= Engine_InsertingRow;
+        Engine.RowInserted -= Engine_RowInserted;
+        Engine.DeletingRow -= Engine_DeletingRow;
+        Engine.RowDeleted -= Engine_RowDeleted;
+        Engine.EditRequested -= Engine_EditRequested;
+    }
+    void ToolButtons_CollectionChanged(object Sender, NotifyCollectionChangedEventArgs Args)
+    {
+        if (Args.OldItems != null)
+            foreach (GroupGridToolButton Button in Args.OldItems)
+                Button.PropertyChanged -= ToolButton_PropertyChanged;
+        if (Args.NewItems != null)
+            foreach (GroupGridToolButton Button in Args.NewItems)
+                Button.PropertyChanged += ToolButton_PropertyChanged;
+
+        InvalidateVisual();
+    }
+    void ToolButton_PropertyChanged(object Sender, PropertyChangedEventArgs Args)
+    {
+        InvalidateVisual();
+    }
+    void AddStandardToolButtons()
+    {
+        fToolButtons.Add(new GroupGridToolButton { Name = InsertToolButtonName, Text = "+", ToolTip = "Insert row" });
+        fToolButtons.Add(new GroupGridToolButton { Name = DeleteToolButtonName, Text = "-", ToolTip = "Delete row" });
+        fToolButtons.Add(new GroupGridToolButton { Name = EditToolButtonName, Text = "E", ToolTip = "Edit row", IsVisible = false });
+    }
+    GroupGridToolButton FindToolButton(string Name)
+    {
+        return string.IsNullOrWhiteSpace(Name)
+            ? null
+            : fToolButtons.FirstOrDefault(Button => string.Equals(Button.Name, Name, StringComparison.OrdinalIgnoreCase));
+    }
+    int IndexOfToolButton(string Name)
+    {
+        GroupGridToolButton Button = FindToolButton(Name);
+        return Button == null ? -1 : fToolButtons.IndexOf(Button);
+    }
+    void PrepareToolButton(GroupGridToolButton Button, GroupGridToolButtonAlignment Alignment)
+    {
+        if (Button == null)
+            throw new ArgumentNullException(nameof(Button));
+
+        Button.Alignment = Alignment;
+    }
+    bool SetBandVisible(ref bool Field, bool Value)
+    {
+        if (Field == Value)
+            return false;
+
+        Field = Value;
+        UpdateViewport(Bounds.Size);
+        InvalidateMeasure();
+        InvalidateVisual();
+        return true;
+    }
+    bool GetDefaultToolButtonVisible(string Name)
+    {
+        GroupGridToolButton Button = FindToolButton(Name);
+        return Button != null && Button.IsVisible;
+    }
+    void SetDefaultToolButtonVisible(string Name, bool Value)
+    {
+        GroupGridToolButton Button = FindToolButton(Name);
+        if (Button != null)
+            Button.IsVisible = Value;
     }
     void UpdateViewport(Size Size)
     {
@@ -252,6 +369,33 @@ public class GroupGrid: Control
         InvalidateVisual();
         return true;
     }
+    double GetToolBarHeight()
+    {
+        return fIsToolBarVisible ? fEngine.LayoutMetrics.ToolBarHeight : 0;
+    }
+    double GetGroupPanelHeight()
+    {
+        return fIsGroupPanelVisible ? fEngine.LayoutMetrics.GroupPanelHeight : 0;
+    }
+    double GetColumnHeaderHeight()
+    {
+        return fIsColumnHeadersVisible ? fEngine.LayoutMetrics.ColumnHeaderHeight : 0;
+    }
+    double GetFilterPanelHeight()
+    {
+        return fIsFilterPanelVisible ? fEngine.LayoutMetrics.FilterRowHeight : 0;
+    }
+    double GetTotalsSummaryHeight()
+    {
+        return fIsTotalsSummaryVisible ? fEngine.LayoutMetrics.FooterSummaryHeight : 0;
+    }
+    double GetBodyFixedTopHeight()
+    {
+        return GetToolBarHeight()
+               + GetGroupPanelHeight()
+               + GetColumnHeaderHeight()
+               + GetFilterPanelHeight();
+    }
     bool HasVerticalScrollBar()
     {
         return fEngine != null
@@ -264,39 +408,36 @@ public class GroupGrid: Control
         if (fEngine == null)
             return 0;
 
-        return fEngine.LayoutMetrics.ToolBarHeight
-               + fEngine.LayoutMetrics.GroupPanelHeight
-               + fEngine.LayoutMetrics.ColumnHeaderHeight
-               + fEngine.LayoutMetrics.FilterRowHeight;
+        return GetBodyFixedTopHeight();
     }
     double GetGroupPanelTop()
     {
         if (fEngine == null)
             return 0;
 
-        return fEngine.LayoutMetrics.ToolBarHeight;
+        return GetToolBarHeight();
     }
     Rect GetGroupPanelRect()
     {
         if (fEngine == null)
             return default;
 
-        return new Rect(0, GetGroupPanelTop(), GetBodyContentWidth(), fEngine.LayoutMetrics.GroupPanelHeight);
+        return new Rect(0, GetGroupPanelTop(), GetBodyContentWidth(), GetGroupPanelHeight());
     }
     Rect GetColumnHeaderRect()
     {
         if (fEngine == null)
             return default;
 
-        double Y = fEngine.LayoutMetrics.ToolBarHeight + fEngine.LayoutMetrics.GroupPanelHeight;
-        return new Rect(0, Y, GetBodyContentWidth(), fEngine.LayoutMetrics.ColumnHeaderHeight);
+        double Y = GetToolBarHeight() + GetGroupPanelHeight();
+        return new Rect(0, Y, GetBodyContentWidth(), GetColumnHeaderHeight());
     }
     double GetBodyHeight()
     {
         if (fEngine == null)
             return 0;
 
-        return Math.Max(0, Bounds.Height - GetBodyTop() - fEngine.LayoutMetrics.FooterSummaryHeight - GetHorizontalScrollBarHeight());
+        return Math.Max(0, Bounds.Height - GetBodyTop() - GetTotalsSummaryHeight() - GetHorizontalScrollBarHeight());
     }
     double GetBodyContentWidth()
     {
@@ -351,7 +492,7 @@ public class GroupGrid: Control
         if (!HasHorizontalScrollBar())
             return default;
 
-        return new Rect(0, GetBodyTop() + GetBodyHeight() + fEngine.LayoutMetrics.FooterSummaryHeight, GetBodyContentWidth(), fEngine.LayoutMetrics.HorizontalScrollBarHeight);
+        return new Rect(0, GetBodyTop() + GetBodyHeight() + GetTotalsSummaryHeight(), GetBodyContentWidth(), fEngine.LayoutMetrics.HorizontalScrollBarHeight);
     }
     Rect GetHorizontalScrollThumbRect()
     {
@@ -486,6 +627,15 @@ public class GroupGrid: Control
     {
         return Point.X >= 0 && Point.Y >= 0 && Point.X < Bounds.Width && Point.Y < Bounds.Height;
     }
+    bool IsColumnDragRejectTarget(Point Point)
+    {
+        return fIsColumnDragging
+               && fIsColumnDragActive
+               && fColumnDragColumn != null
+               && !IsInsideGrid(Point)
+               && fColumnDragDropIndex < 0
+               && fColumnDragGroupDropIndex < 0;
+    }
     int IndexOfGroupColumn(GroupGridColumn Column)
     {
         for (int Index = 0; Index < fEngine.GroupColumns.Count; Index++)
@@ -548,14 +698,27 @@ public class GroupGrid: Control
 
         return ListType == null ? null : ListType.GetGenericArguments()[0];
     }
+    DataView FindDataView(object ItemsSource)
+    {
+        if (ItemsSource is DataTable Table)
+            return Table.DefaultView;
+        if (ItemsSource is DataView View)
+            return View;
+
+        return null;
+    }
     IGroupGridDataAdapter CreateDataAdapter(object ItemsSource)
     {
         if (ItemsSource == null)
             return null;
 
+        DataView View = FindDataView(ItemsSource);
+        if (View != null)
+            return new GroupGridDataViewDataAdapter(View);
+
         Type ItemType = FindListItemType(ItemsSource);
         if (ItemType == null)
-            throw new ArgumentException("ItemsSource must implement IList<T>.", nameof(ItemsSource));
+            throw new ArgumentException("ItemsSource must be a DataTable, DataView, or implement IList<T>.", nameof(ItemsSource));
 
         Type AdapterType = typeof(GroupGridListDataAdapter<>).MakeGenericType(ItemType);
         return (IGroupGridDataAdapter)Activator.CreateInstance(AdapterType, ItemsSource);
@@ -586,6 +749,32 @@ public class GroupGrid: Control
         Column.IsReadOnly = !Property.CanWrite;
         return Column;
     }
+    GroupGridColumn CreateAutoColumn(DataColumn DataColumn)
+    {
+        Type Type = Nullable.GetUnderlyingType(DataColumn.DataType) ?? DataColumn.DataType;
+        GroupGridColumn Column;
+
+        if (Type == typeof(bool))
+            Column = new GroupGridCheckBoxColumn();
+        else if (Type == typeof(DateTime) || Type == typeof(DateTimeOffset))
+            Column = new GroupGridDateColumn();
+        else if (Type == typeof(byte)
+                 || Type == typeof(short)
+                 || Type == typeof(int)
+                 || Type == typeof(long)
+                 || Type == typeof(float)
+                 || Type == typeof(double)
+                 || Type == typeof(decimal))
+            Column = new GroupGridNumberColumn();
+        else
+            Column = new GroupGridTextColumn();
+
+        Column.Name = DataColumn.ColumnName;
+        Column.Header = string.IsNullOrWhiteSpace(DataColumn.Caption) ? DataColumn.ColumnName : DataColumn.Caption;
+        Column.ValueType = Type;
+        Column.IsReadOnly = DataColumn.ReadOnly;
+        return Column;
+    }
     void GenerateColumnsFromItemType(Type ItemType)
     {
         if (!fAutoGenerateColumns || ItemType == null || Columns.Count > 0)
@@ -594,6 +783,25 @@ public class GroupGrid: Control
         foreach (PropertyInfo Property in ItemType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
             if (Property.GetIndexParameters().Length == 0)
                 Columns.Add(CreateAutoColumn(Property));
+    }
+    void GenerateColumnsFromDataView(DataView View)
+    {
+        if (!fAutoGenerateColumns || View == null || View.Table == null || Columns.Count > 0)
+            return;
+
+        foreach (DataColumn DataColumn in View.Table.Columns)
+            Columns.Add(CreateAutoColumn(DataColumn));
+    }
+    void GenerateColumnsFromItemsSource(object ItemsSource)
+    {
+        DataView View = FindDataView(ItemsSource);
+        if (View != null)
+        {
+            GenerateColumnsFromDataView(View);
+            return;
+        }
+
+        GenerateColumnsFromItemType(FindListItemType(ItemsSource));
     }
     void SetItemsSource(object Value)
     {
@@ -607,7 +815,7 @@ public class GroupGrid: Control
         }
 
         fItemsSource = Value;
-        GenerateColumnsFromItemType(FindListItemType(Value));
+        GenerateColumnsFromItemsSource(Value);
 
         IGroupGridDataAdapter Adapter = CreateDataAdapter(Value);
         fOwnedDataAdapter = Adapter as IDisposable;
@@ -624,6 +832,457 @@ public class GroupGrid: Control
     bool IsEditingCell(GroupGridRowInfo RowInfo, GroupGridColumn Column)
     {
         return RowInfo.IsDataRow && fEngine.EditingCell == new GroupGridCell(RowInfo.RowIndex, Column);
+    }
+    bool IsCheckBoxToggleColumn(GroupGridColumn Column)
+    {
+        return Column is GroupGridCheckBoxColumn || Column?.ValueType == typeof(bool);
+    }
+    bool ToggleCheckBoxCell(GroupGridHitTestResult Hit)
+    {
+        if (Hit == null
+            || Hit.RowKind != GroupGridRowKind.DataRow
+            || !Hit.HasCell)
+            return false;
+
+        return ToggleCheckBoxCell(Hit.Cell);
+    }
+    bool ToggleCheckBoxCell(GroupGridCell Cell)
+    {
+        if (Cell.IsEmpty
+            || !IsCheckBoxToggleColumn(Cell.Column)
+            || fEngine.IsReadOnly
+            || Cell.Column.IsReadOnly
+            || !fEngine.CanSetValue(Cell.RowIndex, Cell.Column))
+            return false;
+
+        object Value = fEngine.GetValue(Cell.RowIndex, Cell.Column);
+        bool IsChecked = Value != null && Value != DBNull.Value && Convert.ToBoolean(Value, CultureInfo.CurrentCulture);
+        fEngine.SetValue(Cell.RowIndex, Cell.Column, !IsChecked);
+        return true;
+    }
+    string GetCellEditText(GroupGridCell Cell)
+    {
+        return Cell.IsEmpty
+            ? string.Empty
+            : Convert.ToString(fEngine.GetValue(Cell.RowIndex, Cell.Column), CultureInfo.CurrentCulture) ?? string.Empty;
+    }
+    bool CanEditTextCell(GroupGridCell Cell)
+    {
+        return !Cell.IsEmpty
+               && !IsCheckBoxToggleColumn(Cell.Column)
+               && fEngine.CanSetValue(Cell.RowIndex, Cell.Column);
+    }
+    bool BeginCellEdit(bool ReplaceText, string Text)
+    {
+        GroupGridCell Cell = fEngine.CurrentCell;
+        if (!CanEditTextCell(Cell))
+            return false;
+
+        if (!fEngine.BeginEdit(Cell))
+            return false;
+
+        fCellEditText = ReplaceText ? Text ?? string.Empty : GetCellEditText(Cell);
+        InvalidateVisual();
+        return true;
+    }
+    bool CommitCellEdit()
+    {
+        if (!fEngine.IsEditing)
+            return false;
+
+        try
+        {
+            bool Result = fEngine.CommitEdit(fCellEditText);
+            if (Result)
+                fCellEditText = string.Empty;
+            return Result;
+        }
+        catch
+        {
+            // Invalid editor text remains pending so the user can correct it.
+            return true;
+        }
+    }
+    bool CancelCellEdit()
+    {
+        if (!fEngine.CancelEdit())
+            return false;
+
+        fCellEditText = string.Empty;
+        InvalidateVisual();
+        return true;
+    }
+    bool AppendCellEditText(string Text)
+    {
+        if (!fEngine.IsEditing || !IsPrintableText(Text))
+            return false;
+
+        fCellEditText += Text;
+        InvalidateVisual();
+        return true;
+    }
+    bool BackspaceCellEditText()
+    {
+        if (!fEngine.IsEditing || string.IsNullOrEmpty(fCellEditText))
+            return false;
+
+        fCellEditText = fCellEditText.Substring(0, fCellEditText.Length - 1);
+        InvalidateVisual();
+        return true;
+    }
+    bool ClearCellEditText()
+    {
+        if (!fEngine.IsEditing)
+            return false;
+
+        fCellEditText = string.Empty;
+        InvalidateVisual();
+        return true;
+    }
+    MenuItem CreateMenuItem(string Header, bool IsEnabled, Action Click)
+    {
+        MenuItem Result = new()
+        {
+            Header = Header,
+            IsEnabled = IsEnabled,
+        };
+        Result.Click += (Sender, Args) => Click?.Invoke();
+        return Result;
+    }
+    string GetSortMenuHeader(GroupGridColumn Column)
+    {
+        if (!ReferenceEquals(fEngine.SortColumn, Column) || fEngine.SortDirection == GroupGridSortDirection.None)
+            return "Sort Ascending";
+        if (fEngine.SortDirection == GroupGridSortDirection.Ascending)
+            return "Sort Descending";
+
+        return "Clear Sorting";
+    }
+    bool IsPrintableText(string Text)
+    {
+        return !string.IsNullOrEmpty(Text) && !Text.Any(Character => char.IsControl(Character));
+    }
+    bool SetFilterEditColumn(GroupGridColumn Column)
+    {
+        if (ReferenceEquals(fFilterEditColumn, Column))
+            return false;
+
+        fFilterEditColumn = Column;
+        fFilterEditText = Column == null ? string.Empty : fEngine.GetColumnFilter(Column);
+        InvalidateVisual();
+        return true;
+    }
+    bool AppendFilterText(string Text)
+    {
+        if (fFilterEditColumn == null || !IsPrintableText(Text))
+            return false;
+
+        fFilterEditText += Text;
+        InvalidateVisual();
+        return true;
+    }
+    bool BackspaceFilterText()
+    {
+        if (fFilterEditColumn == null)
+            return false;
+
+        if (string.IsNullOrEmpty(fFilterEditText))
+            return false;
+
+        fFilterEditText = fFilterEditText.Substring(0, fFilterEditText.Length - 1);
+        InvalidateVisual();
+        return true;
+    }
+    bool ApplyFilterEdit()
+    {
+        if (fFilterEditColumn == null)
+            return false;
+
+        GroupGridColumn Column = fFilterEditColumn;
+        string Text = fFilterEditText;
+        SetFilterEditColumn(null);
+        return fEngine.SetColumnFilter(Column, Text);
+    }
+    bool CancelFilterEdit()
+    {
+        return SetFilterEditColumn(null);
+    }
+    bool ClearFilterEdit()
+    {
+        if (fFilterEditColumn == null)
+            return false;
+
+        GroupGridColumn Column = fFilterEditColumn;
+        SetFilterEditColumn(null);
+        return fEngine.ClearColumnFilter(Column);
+    }
+    bool ShowColumnContextMenu(Point Point)
+    {
+        GroupGridHitTestResult Hit = HitTest(Point);
+        if (Hit == null || Hit.Column == null || Hit.Kind != GroupGridHitTestKind.ColumnHeader)
+            return false;
+
+        GroupGridColumn Column = Hit.Column;
+        bool IsGrouped = fEngine.IsGroupedColumn(Column);
+        ContextMenu Menu = new()
+        {
+            Placement = PlacementMode.Pointer,
+        };
+        List<object> Items = new()
+        {
+            CreateMenuItem(GetSortMenuHeader(Column), true, () => fEngine.ToggleSort(Column)),
+            new Separator(),
+            CreateMenuItem("Group by This Column", !IsGrouped && Column.CanUserGroup, () => fEngine.GroupColumn(Column)),
+            CreateMenuItem("Ungroup Column", IsGrouped, () => fEngine.UngroupColumn(Column)),
+            new Separator(),
+            CreateMenuItem("Hide Column", Column.IsVisible && Column.CanUserHide, () => fEngine.SetColumnVisible(Column, false)),
+            new Separator(),
+            CreateMenuItem("Clear Column Filter", !string.IsNullOrEmpty(fEngine.GetColumnFilter(Column)), () => fEngine.ClearColumnFilter(Column)),
+            CreateMenuItem("Clear All Filters", fEngine.HasFilters, () => fEngine.ClearFilters()),
+        };
+
+        if (fIsColumnManagerMenuItemVisible)
+        {
+            Items.Add(new Separator());
+            Items.Add(CreateMenuItem("Column Manager...", ColumnManagerRequested != null, () => ColumnManagerRequested?.Invoke(this, EventArgs.Empty)));
+        }
+
+        Menu.ItemsSource = Items;
+        Menu.Open(this);
+        return true;
+    }
+    bool ShowSummaryContextMenu(Point Point)
+    {
+        GroupGridHitTestResult Hit = HitTest(Point);
+        if (Hit == null || Hit.Column == null)
+            return false;
+
+        bool IsGroupSummary = Hit.Kind == GroupGridHitTestKind.BodyCell && Hit.RowKind == GroupGridRowKind.GroupSummary;
+        bool IsTotalSummary = Hit.Kind == GroupGridHitTestKind.FooterSummaryCell;
+        if (!IsGroupSummary && !IsTotalSummary)
+            return false;
+
+        GroupGridColumn Column = Hit.Column;
+        GroupGridAggregateKind Current = IsGroupSummary ? Column.GroupSummary : Column.TotalSummary;
+        ContextMenu Menu = new()
+        {
+            Placement = PlacementMode.Pointer,
+        };
+        List<object> Items = new()
+        {
+            CreateMenuItem(IsGroupSummary ? "Group Summary" : "Total Summary", false, null),
+            new Separator(),
+        };
+
+        foreach (GroupGridAggregateKind AggregateKind in Enum.GetValues(typeof(GroupGridAggregateKind)))
+        {
+            string Header = AggregateKind == Current ? "* " + AggregateKind : AggregateKind.ToString();
+            Items.Add(CreateMenuItem(Header, true, () => SetSummaryAggregate(Column, IsGroupSummary, AggregateKind)));
+        }
+
+        Menu.ItemsSource = Items;
+        Menu.Open(this);
+        return true;
+    }
+    void SetSummaryAggregate(GroupGridColumn Column, bool IsGroupSummary, GroupGridAggregateKind AggregateKind)
+    {
+        if (Column == null)
+            return;
+
+        if (IsGroupSummary)
+            Column.GroupSummary = AggregateKind;
+        else
+            Column.TotalSummary = AggregateKind;
+
+        fEngine.RebuildProjection();
+        InvalidateVisual();
+    }
+    List<(GroupGridToolButton Button, Rect Rect)> LayoutToolButtons(double Width)
+    {
+        List<(GroupGridToolButton Button, Rect Rect)> Result = new();
+        if (fEngine == null || !fIsToolBarVisible)
+            return Result;
+
+        double ButtonSize = 24;
+        double Gap = 4;
+        double Margin = 4;
+        double Y = Math.Max(0, (fEngine.LayoutMetrics.ToolBarHeight - ButtonSize) / 2);
+        double X = Margin;
+
+        foreach (GroupGridToolButton Button in fToolButtons.Where(Button => Button.IsVisible && Button.Alignment == GroupGridToolButtonAlignment.Left))
+        {
+            Result.Add((Button, new Rect(X, Y, ButtonSize, ButtonSize)));
+            X += ButtonSize + Gap;
+        }
+
+        List<GroupGridToolButton> RightButtons = fToolButtons
+            .Where(Button => Button.IsVisible && Button.Alignment == GroupGridToolButtonAlignment.Right)
+            .ToList();
+        double RightWidth = RightButtons.Count == 0 ? 0 : (RightButtons.Count * ButtonSize) + ((RightButtons.Count - 1) * Gap);
+        X = Math.Max(Margin, Width - Margin - RightWidth);
+        foreach (GroupGridToolButton Button in RightButtons)
+        {
+            Result.Add((Button, new Rect(X, Y, ButtonSize, ButtonSize)));
+            X += ButtonSize + Gap;
+        }
+
+        return Result;
+    }
+    bool IsToolButtonEnabled(GroupGridToolButton Button)
+    {
+        if (Button == null || !Button.IsEnabled || fEngine == null)
+            return false;
+
+        switch (Button.Name)
+        {
+            case InsertToolButtonName:
+                return fEngine.CanInsertRow();
+            case DeleteToolButtonName:
+                return fEngine.CanDeleteCurrentRow();
+        }
+
+        return true;
+    }
+    GroupGridToolButton GetToolButtonAt(Point Point)
+    {
+        foreach ((GroupGridToolButton Button, Rect Rect) in LayoutToolButtons(Bounds.Width))
+            if (Rect.Contains(Point))
+                return Button;
+
+        return null;
+    }
+    void UpdateToolButtonPointerOver(Point Point)
+    {
+        GroupGridToolButton Button = GetToolButtonAt(Point);
+        if (ReferenceEquals(fPointerOverToolButton, Button))
+            return;
+
+        fPointerOverToolButton = Button;
+        ToolTip.SetTip(this, string.IsNullOrWhiteSpace(Button?.ToolTip) ? null : Button.ToolTip);
+        InvalidateVisual();
+    }
+    bool HandleToolButtonPointerPressed(Point Point)
+    {
+        GroupGridToolButton Button = GetToolButtonAt(Point);
+        if (Button == null)
+            return false;
+
+        if (!IsToolButtonEnabled(Button))
+            return true;
+
+        switch (Button.Name)
+        {
+            case InsertToolButtonName:
+                if (fEngine.InsertRow())
+                {
+                    ScrollCurrentCellIntoViewCore();
+                    BeginCellEdit(false, null);
+                }
+                return true;
+            case DeleteToolButtonName:
+                DeleteCurrentRowFromToolBarAsync();
+                return true;
+            case EditToolButtonName:
+                fEngine.RequestEdit();
+                return true;
+        }
+
+        ToolButtonClicked?.Invoke(this, new GroupGridToolButtonEventArgs(Button));
+        return true;
+    }
+    async void DeleteCurrentRowFromToolBarAsync()
+    {
+        if (fEngine == null || fIsDeleteConfirmationOpen || !fEngine.CanDeleteCurrentRow())
+            return;
+
+        if (DeletingRow == null)
+        {
+            fIsDeleteConfirmationOpen = true;
+            bool Confirmed;
+            try
+            {
+                Confirmed = await ShowDefaultDeleteConfirmationAsync();
+            }
+            finally
+            {
+                fIsDeleteConfirmationOpen = false;
+            }
+
+            if (!Confirmed)
+                return;
+        }
+
+        if (fEngine.DeleteCurrentRow())
+            ScrollCurrentCellIntoViewCore();
+    }
+    Task<bool> ShowDefaultDeleteConfirmationAsync()
+    {
+        Window Owner = TopLevel.GetTopLevel(this) as Window;
+        if (Owner == null)
+            return Task.FromResult(false);
+
+        TextBlock Text = new()
+        {
+            Text = "Delete current row?",
+            Margin = new Thickness(12, 12, 12, 8),
+        };
+        Button CancelButton = new()
+        {
+            Content = "Cancel",
+            MinWidth = 80,
+        };
+        Button DeleteButton = new()
+        {
+            Content = "Delete",
+            MinWidth = 80,
+        };
+        StackPanel ButtonPanel = new()
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Spacing = 8,
+            Margin = new Thickness(12, 0, 12, 12),
+            Children =
+            {
+                CancelButton,
+                DeleteButton,
+            },
+        };
+        StackPanel Panel = new()
+        {
+            Children =
+            {
+                Text,
+                ButtonPanel,
+            },
+        };
+        Window Dialog = new()
+        {
+            Title = "Confirm Delete",
+            Width = 280,
+            Height = 120,
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Content = Panel,
+        };
+
+        CancelButton.Click += (Sender, Args) => Dialog.Close(false);
+        DeleteButton.Click += (Sender, Args) => Dialog.Close(true);
+        return Dialog.ShowDialog<bool>(Owner);
+    }
+    void DrawToolBar(DrawingContext Context, Rect Rect)
+    {
+        DrawBand(Context, Rect, fToolBarBrush);
+
+        foreach ((GroupGridToolButton Button, Rect ButtonRect) in LayoutToolButtons(Rect.Width))
+        {
+            bool IsEnabled = IsToolButtonEnabled(Button);
+            bool IsPointerOver = ReferenceEquals(fPointerOverToolButton, Button);
+            IBrush ButtonBrush = IsPointerOver && IsEnabled ? fToolButtonHoverBrush : fToolButtonBrush;
+            IBrush TextBrush = IsEnabled ? fTextBrush : fDisabledTextBrush;
+            Context.DrawRectangle(ButtonBrush, fLinePen, ButtonRect, 3, 3);
+            DrawText(Context, Button.Text, ButtonRect, TextBrush, FontWeight.SemiBold, GroupGridCellHorizontalAlignment.Center);
+        }
     }
     Rect InsetRect(Rect Rect, double Value)
     {
@@ -671,7 +1330,74 @@ public class GroupGrid: Control
         DrawBand(Context, Rect, Brush);
 
         string Text = string.IsNullOrWhiteSpace(Column.Header) ? Column.Name : Column.Header;
-        DrawText(Context, Text, Rect, fTextBrush, FontWeight.SemiBold);
+        Rect TextRect = Rect;
+        if (ReferenceEquals(fEngine.SortColumn, Column) && fEngine.SortDirection != GroupGridSortDirection.None)
+            TextRect = new Rect(Rect.X, Rect.Y, Math.Max(0, Rect.Width - 18), Rect.Height);
+
+        DrawText(Context, Text, TextRect, fTextBrush, FontWeight.SemiBold);
+        DrawSortGlyph(Context, Column, Rect);
+    }
+    void DrawSortGlyph(DrawingContext Context, GroupGridColumn Column, Rect Rect)
+    {
+        if (!ReferenceEquals(fEngine.SortColumn, Column) || fEngine.SortDirection == GroupGridSortDirection.None)
+            return;
+
+        double CenterX = Rect.Right - 10;
+        double CenterY = Rect.Y + (Rect.Height / 2);
+        double Size = 8;
+        StreamGeometry Geometry = new();
+
+        using (StreamGeometryContext GeometryContext = Geometry.Open())
+        {
+            if (fEngine.SortDirection == GroupGridSortDirection.Ascending)
+            {
+                GeometryContext.BeginFigure(new Point(CenterX, CenterY - (Size / 2)), true);
+                GeometryContext.LineTo(new Point(CenterX + (Size / 2), CenterY + (Size / 2)));
+                GeometryContext.LineTo(new Point(CenterX - (Size / 2), CenterY + (Size / 2)));
+            }
+            else
+            {
+                GeometryContext.BeginFigure(new Point(CenterX - (Size / 2), CenterY - (Size / 2)), true);
+                GeometryContext.LineTo(new Point(CenterX + (Size / 2), CenterY - (Size / 2)));
+                GeometryContext.LineTo(new Point(CenterX, CenterY + (Size / 2)));
+            }
+
+            GeometryContext.EndFigure(true);
+        }
+
+        Context.DrawGeometry(fMutedTextBrush, null, Geometry);
+    }
+    void DrawFilterCell(DrawingContext Context, GroupGridColumn Column, Rect Rect, IBrush Brush)
+    {
+        bool IsActive = ReferenceEquals(fFilterEditColumn, Column);
+        string FilterText = IsActive
+            ? fFilterEditText
+            : fEngine.GetColumnFilter(Column);
+        bool HasFilter = !string.IsNullOrEmpty(FilterText);
+        IBrush CellBrush = IsActive ? fActiveFilterBrush : HasFilter ? fFilteredCellBrush : Brush;
+        DrawBand(Context, Rect, CellBrush);
+
+        if (!string.IsNullOrEmpty(FilterText))
+            DrawText(Context, FilterText, Rect, fMutedTextBrush);
+
+        if (IsActive)
+        {
+            Context.DrawRectangle(null, fCurrentPen, InsetRect(Rect, 1));
+            DrawFilterCaret(Context, FilterText, Rect);
+        }
+    }
+    void DrawFilterCaret(DrawingContext Context, string Text, Rect Rect)
+    {
+        double X = Rect.X + 4;
+        if (!string.IsNullOrEmpty(Text))
+        {
+            FormattedText FormattedText = CreateText(Text, fMutedTextBrush, Math.Max(0, Rect.Width - 8));
+            X += Math.Min(FormattedText.Width, Math.Max(0, Rect.Width - 10));
+        }
+
+        double Top = Rect.Y + 4;
+        double Bottom = Rect.Bottom - 4;
+        Context.DrawLine(fCurrentPen, new Point(X, Top), new Point(X, Bottom));
     }
     void DrawExpander(DrawingContext Context, Rect Rect, bool IsExpanded)
     {
@@ -715,7 +1441,7 @@ public class GroupGrid: Control
                 {
                     Rect Rect = new(X, Y, ColumnWidth, Height);
                     if (DrawFilterText)
-                        DrawBand(Context, Rect, Brush);
+                        DrawFilterCell(Context, Column, Rect, Brush);
                     else
                         DrawColumnHeaderCell(Context, Column, Rect, Brush);
                 }
@@ -853,12 +1579,16 @@ public class GroupGrid: Control
                         CellBrush = fEditingBrush;
 
                     Context.DrawRectangle(CellBrush, fLinePen, CellRect);
-                    DrawText(Context, fEngine.GetDisplayText(VisibleNodeIndex, Column), CellRect, RowInfo.IsGroupSummary ? fMutedTextBrush : fTextBrush, FontWeight.Normal, Column.HorizontalAlignment);
+                    string Text = IsEditingCell(RowInfo, Column) ? fCellEditText : fEngine.GetDisplayText(VisibleNodeIndex, Column);
+                    DrawText(Context, Text, CellRect, RowInfo.IsGroupSummary ? fMutedTextBrush : fTextBrush, FontWeight.Normal, Column.HorizontalAlignment);
 
                     if (IsCurrentCell(RowInfo, Column))
                         Context.DrawRectangle(null, fCurrentPen, CellRect);
                     if (IsEditingCell(RowInfo, Column))
+                    {
                         Context.DrawRectangle(null, fEditingPen, InsetRect(CellRect, 1));
+                        DrawFilterCaret(Context, Text, CellRect);
+                    }
                 }
 
                 X += Width;
@@ -894,8 +1624,8 @@ public class GroupGrid: Control
             return;
 
         double X = Math.Clamp(fColumnResizeCurrentX, 0, GetBodyContentWidth());
-        double Top = fEngine.LayoutMetrics.ToolBarHeight + fEngine.LayoutMetrics.GroupPanelHeight;
-        double Bottom = GetBodyTop() + GetBodyHeight() + fEngine.LayoutMetrics.FooterSummaryHeight;
+        double Top = GetToolBarHeight() + GetGroupPanelHeight();
+        double Bottom = GetBodyTop() + GetBodyHeight() + GetTotalsSummaryHeight();
         Context.DrawLine(fResizePen, new Point(X, Top), new Point(X, Bottom));
     }
     void DrawColumnDragGuide(DrawingContext Context)
@@ -914,8 +1644,8 @@ public class GroupGrid: Control
             return;
         }
 
-        double Top = fEngine.LayoutMetrics.ToolBarHeight + fEngine.LayoutMetrics.GroupPanelHeight;
-        double Bottom = GetBodyTop() + GetBodyHeight() + fEngine.LayoutMetrics.FooterSummaryHeight;
+        double Top = GetToolBarHeight() + GetGroupPanelHeight();
+        double Bottom = GetBodyTop() + GetBodyHeight() + GetTotalsSummaryHeight();
         Context.DrawLine(fResizePen, new Point(X, Top), new Point(X, Bottom));
     }
     void DrawColumnDragGhost(DrawingContext Context)
@@ -925,8 +1655,8 @@ public class GroupGrid: Control
 
         double Width = Math.Max(fColumnDragColumn.MinWidth, fColumnDragColumn.Width);
         double Height = fEngine.LayoutMetrics.ColumnHeaderHeight;
-        double X = Math.Clamp(fColumnDragCurrentX - (Width / 2), 0, Math.Max(0, Bounds.Width - Width));
-        double Y = Math.Clamp(fColumnDragCurrentY - (Height / 2), fEngine.LayoutMetrics.ToolBarHeight, Math.Max(fEngine.LayoutMetrics.ToolBarHeight, Bounds.Height - Height));
+        double X = fColumnDragCurrentX - (Width / 2);
+        double Y = fColumnDragCurrentY - (Height / 2);
         Rect Rect = new(X, Y, Width, Height);
         DrawColumnHeaderCell(Context, fColumnDragColumn, Rect, fColumnDragBrush);
     }
@@ -959,14 +1689,23 @@ public class GroupGrid: Control
 
         if (Hit.Kind == GroupGridHitTestKind.GroupExpander)
         {
+            SetFilterEditColumn(null);
             fEngine.ToggleGroupExpanded(Hit.VisibleNodeIndex);
+            return;
+        }
+
+        if (Hit.Kind == GroupGridHitTestKind.FilterCell && Hit.Column != null)
+        {
+            SetFilterEditColumn(Hit.Column);
             return;
         }
 
         if (Hit.Kind == GroupGridHitTestKind.BodyCell && Hit.RowKind == GroupGridRowKind.DataRow && Hit.HasCell)
         {
+            SetFilterEditColumn(null);
             fEngine.SetCurrentCell(Hit.Cell);
             fEngine.SetSelectedCell(Hit.Cell);
+            ToggleCheckBoxCell(Hit);
         }
     }
     bool HandleVerticalScrollPointerPressed(PointerPressedEventArgs Args, Point Point)
@@ -1107,6 +1846,7 @@ public class GroupGrid: Control
             fColumnDragDropX = Point.X;
         }
 
+        UpdatePointerCursor(Point);
         InvalidateVisual();
         return true;
     }
@@ -1148,6 +1888,13 @@ public class GroupGrid: Control
             Cursor = new Cursor(StandardCursorType.SizeWestEast);
             return;
         }
+        if (fIsColumnDragging)
+        {
+            Cursor = IsColumnDragRejectTarget(Point)
+                ? new Cursor(StandardCursorType.No)
+                : null;
+            return;
+        }
 
         GroupGridHitTestResult Hit = HitTest(Point);
         Cursor = Hit != null && Hit.Kind == GroupGridHitTestKind.ColumnResizer
@@ -1159,38 +1906,117 @@ public class GroupGrid: Control
         if (!HasHorizontalScrollBar())
             return false;
 
-        double Top = fEngine.LayoutMetrics.ToolBarHeight + fEngine.LayoutMetrics.GroupPanelHeight;
-        double Bottom = GetBodyTop() + GetBodyHeight() + fEngine.LayoutMetrics.FooterSummaryHeight;
+        double Top = GetToolBarHeight() + GetGroupPanelHeight();
+        double Bottom = GetBodyTop() + GetBodyHeight() + GetTotalsSummaryHeight();
         return Point.X >= 0 && Point.X < GetBodyContentWidth() && Point.Y >= Top && Point.Y < Bottom;
+    }
+    bool TryMapVisibleYToEngineY(double VisibleY, out double EngineY)
+    {
+        EngineY = VisibleY;
+        double VisibleTop = 0;
+        double EngineOffset = 0;
+
+        if (!MapVisibleBandY(VisibleY, fEngine.LayoutMetrics.ToolBarHeight, GetToolBarHeight(), ref VisibleTop, ref EngineOffset, out EngineY))
+            return false;
+        if (!MapVisibleBandY(VisibleY, fEngine.LayoutMetrics.GroupPanelHeight, GetGroupPanelHeight(), ref VisibleTop, ref EngineOffset, out EngineY))
+            return false;
+        if (!MapVisibleBandY(VisibleY, fEngine.LayoutMetrics.ColumnHeaderHeight, GetColumnHeaderHeight(), ref VisibleTop, ref EngineOffset, out EngineY))
+            return false;
+        if (!MapVisibleBandY(VisibleY, fEngine.LayoutMetrics.FilterRowHeight, GetFilterPanelHeight(), ref VisibleTop, ref EngineOffset, out EngineY))
+            return false;
+
+        double BodyHeight = GetBodyHeight();
+        if (VisibleY < VisibleTop + BodyHeight)
+        {
+            EngineY = VisibleY + EngineOffset;
+            return true;
+        }
+
+        VisibleTop += BodyHeight;
+        if (!MapVisibleBandY(VisibleY, fEngine.LayoutMetrics.FooterSummaryHeight, GetTotalsSummaryHeight(), ref VisibleTop, ref EngineOffset, out EngineY))
+            return false;
+
+        EngineY = VisibleY + EngineOffset;
+        return true;
+    }
+    bool MapVisibleBandY(double VisibleY, double MetricHeight, double VisibleHeight, ref double VisibleTop, ref double EngineOffset, out double EngineY)
+    {
+        EngineY = VisibleY + EngineOffset;
+        if (VisibleHeight > 0)
+        {
+            if (VisibleY < VisibleTop + VisibleHeight)
+                return true;
+
+            VisibleTop += VisibleHeight;
+            return true;
+        }
+
+        EngineOffset += MetricHeight;
+        return true;
     }
     GroupGridHitTestResult HitTest(Point Point)
     {
         double X = Point.X;
         double Y = Point.Y;
-        double HorizontalScrollTop = GetBodyTop() + GetBodyHeight() + fEngine.LayoutMetrics.FooterSummaryHeight;
+        double HorizontalScrollTop = GetBodyTop() + GetBodyHeight() + GetTotalsSummaryHeight();
         if (HasHorizontalScrollBar() && Point.Y >= HorizontalScrollTop && Point.Y < HorizontalScrollTop + fEngine.LayoutMetrics.HorizontalScrollBarHeight)
             return GroupGridHitTestResult.Empty;
 
-        GroupGridHitTestResult Result = fEngine.HitTest(X, Y);
+        if (!TryMapVisibleYToEngineY(Y, out double EngineY))
+            return GroupGridHitTestResult.Empty;
+
+        GroupGridHitTestResult Result = fEngine.HitTest(X, EngineY);
         if (!IsHorizontalScrollableBand(Point))
             return Result;
 
         if (Result.Kind == GroupGridHitTestKind.GroupExpander)
             return Result;
 
-        return fEngine.HitTest(X + fHorizontalOffset, Y);
+        return fEngine.HitTest(X + fHorizontalOffset, EngineY);
     }
     bool HandleKey(KeyEventArgs Args)
     {
         if (fEngine == null)
             return false;
 
+        if (fFilterEditColumn != null)
+        {
+            switch (Args.Key)
+            {
+                case Key.Back:
+                    BackspaceFilterText();
+                    return true;
+                case Key.Delete:
+                    ClearFilterEdit();
+                    return true;
+                case Key.Enter:
+                    ApplyFilterEdit();
+                    return true;
+                case Key.Escape:
+                    CancelFilterEdit();
+                    return true;
+            }
+        }
+
         if (fEngine.IsEditing)
         {
-            if (Args.Key == Key.Escape)
-                return fEngine.CancelEdit();
-
-            return false;
+            switch (Args.Key)
+            {
+                case Key.Back:
+                    BackspaceCellEditText();
+                    return true;
+                case Key.Delete:
+                    ClearCellEditText();
+                    return true;
+                case Key.Enter:
+                    return CommitCellEdit();
+                case Key.Escape:
+                    return CancelCellEdit();
+                case Key.Tab:
+                    if (!CommitCellEdit())
+                        return false;
+                    return fEngine.MoveCurrentToNextEditableCell(!Args.KeyModifiers.HasFlag(KeyModifiers.Shift));
+            }
         }
 
         switch (Args.Key)
@@ -1209,9 +2035,11 @@ public class GroupGrid: Control
                 return fEngine.MoveCurrentToLastColumn();
             case Key.Tab:
                 return fEngine.MoveCurrentToNextEditableCell(!Args.KeyModifiers.HasFlag(KeyModifiers.Shift));
+            case Key.Space:
+                return ToggleCheckBoxCell(fEngine.CurrentCell);
             case Key.Enter:
             case Key.F2:
-                return fEngine.BeginEdit();
+                return BeginCellEdit(false, null);
         }
 
         return false;
@@ -1226,12 +2054,26 @@ public class GroupGrid: Control
         if (fEngine == null)
             return;
 
-        if (!Args.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        PointerPoint PointProperties = Args.GetCurrentPoint(this);
+        if (PointProperties.Properties.IsRightButtonPressed)
+        {
+            Point MenuPoint = Args.GetPosition(this);
+            if (ShowColumnContextMenu(MenuPoint) || ShowSummaryContextMenu(MenuPoint))
+                Args.Handled = true;
+            return;
+        }
+
+        if (!PointProperties.Properties.IsLeftButtonPressed)
             return;
 
         Focus(NavigationMethod.Pointer, KeyModifiers.None);
 
         Point Point = Args.GetPosition(this);
+        if (HandleToolButtonPointerPressed(Point))
+        {
+            Args.Handled = true;
+            return;
+        }
         if (HandleVerticalScrollPointerPressed(Args, Point))
         {
             Args.Handled = true;
@@ -1262,6 +2104,7 @@ public class GroupGrid: Control
         base.OnPointerMoved(Args);
 
         Point Point = Args.GetPosition(this);
+        UpdateToolButtonPointerOver(Point);
         if (HandleColumnResizePointerMoved(Point))
         {
             UpdatePointerCursor(Point);
@@ -1278,7 +2121,11 @@ public class GroupGrid: Control
         if (fIsHorizontalScrollDragging && SetHorizontalOffsetFromScroll(Point.X))
             Args.Handled = true;
         if (!Args.Handled)
+        {
             UpdatePointerCursor(Point);
+            if (fPointerOverToolButton != null && IsToolButtonEnabled(fPointerOverToolButton))
+                Cursor = new Cursor(StandardCursorType.Hand);
+        }
     }
     /// <inheritdoc />
     protected override void OnPointerReleased(PointerReleasedEventArgs Args)
@@ -1290,6 +2137,7 @@ public class GroupGrid: Control
 
         bool WasColumnResizing = fIsColumnResizing;
         bool WasColumnDragging = fIsColumnDragging;
+        Point Point = Args.GetPosition(this);
         fIsVerticalScrollDragging = false;
         fIsHorizontalScrollDragging = false;
         fVerticalScrollDragOffset = 0;
@@ -1297,9 +2145,11 @@ public class GroupGrid: Control
         if (WasColumnResizing)
             EndColumnResize();
         if (WasColumnDragging)
+            HandleColumnDragPointerMoved(Point);
+        if (WasColumnDragging)
             EndColumnDrag();
         Args.Pointer.Capture(null);
-        UpdatePointerCursor(Args.GetPosition(this));
+        UpdatePointerCursor(Point);
         Args.Handled = true;
     }
     /// <inheritdoc />
@@ -1309,6 +2159,9 @@ public class GroupGrid: Control
 
         if (!fIsColumnResizing)
             Cursor = null;
+        fPointerOverToolButton = null;
+        ToolTip.SetTip(this, null);
+        InvalidateVisual();
     }
     /// <inheritdoc />
     protected override void OnKeyDown(KeyEventArgs Args)
@@ -1320,6 +2173,26 @@ public class GroupGrid: Control
             ScrollCurrentCellIntoViewCore();
             Args.Handled = true;
         }
+    }
+    /// <inheritdoc />
+    protected override void OnTextInput(TextInputEventArgs Args)
+    {
+        base.OnTextInput(Args);
+
+        if (AppendFilterText(Args.Text))
+        {
+            Args.Handled = true;
+            return;
+        }
+
+        if (AppendCellEditText(Args.Text))
+        {
+            Args.Handled = true;
+            return;
+        }
+
+        if (IsPrintableText(Args.Text) && BeginCellEdit(true, Args.Text))
+            Args.Handled = true;
     }
     /// <inheritdoc />
     protected override void OnPointerWheelChanged(PointerWheelEventArgs Args)
@@ -1347,6 +2220,8 @@ public class GroupGrid: Control
     public GroupGrid()
     {
         Focusable = true;
+        fToolButtons.CollectionChanged += ToolButtons_CollectionChanged;
+        AddStandardToolButtons();
         Engine = new GroupGridEngine();
     }
 
@@ -1426,6 +2301,97 @@ public class GroupGrid: Control
         return fEngine.GroupColumns.ToList();
     }
     /// <summary>
+    /// Returns a toolbar button by name.
+    /// </summary>
+    /// <param name="Name">The button name.</param>
+    /// <returns>The toolbar button, or null when not found.</returns>
+    public GroupGridToolButton GetToolButton(string Name)
+    {
+        return FindToolButton(Name);
+    }
+    /// <summary>
+    /// Adds a toolbar button to the requested side.
+    /// </summary>
+    /// <param name="Button">The button to add.</param>
+    /// <param name="Alignment">The toolbar side.</param>
+    /// <returns>The added button.</returns>
+    public GroupGridToolButton AddButton(GroupGridToolButton Button, GroupGridToolButtonAlignment Alignment = GroupGridToolButtonAlignment.Left)
+    {
+        PrepareToolButton(Button, Alignment);
+        fToolButtons.Add(Button);
+        return Button;
+    }
+    /// <summary>
+    /// Creates and adds a toolbar button to the requested side.
+    /// </summary>
+    /// <param name="Alignment">The toolbar side.</param>
+    /// <param name="Name">The button name.</param>
+    /// <param name="Text">The compact display text.</param>
+    /// <param name="ToolTip">The tooltip text.</param>
+    /// <returns>The added button.</returns>
+    public GroupGridToolButton AddButton(GroupGridToolButtonAlignment Alignment, string Name, string Text, string ToolTip = "")
+    {
+        return AddButton(new GroupGridToolButton { Name = Name, Text = Text, ToolTip = ToolTip }, Alignment);
+    }
+    /// <summary>
+    /// Inserts a toolbar button before an existing button.
+    /// </summary>
+    /// <param name="ExistingButtonName">The existing button name.</param>
+    /// <param name="Button">The button to insert.</param>
+    /// <returns>True if the button was inserted; otherwise, false.</returns>
+    public bool InsertButtonBefore(string ExistingButtonName, GroupGridToolButton Button)
+    {
+        int Index = IndexOfToolButton(ExistingButtonName);
+        if (Index < 0 || Button == null)
+            return false;
+
+        PrepareToolButton(Button, fToolButtons[Index].Alignment);
+        fToolButtons.Insert(Index, Button);
+        return true;
+    }
+    /// <summary>
+    /// Inserts a toolbar button after an existing button.
+    /// </summary>
+    /// <param name="ExistingButtonName">The existing button name.</param>
+    /// <param name="Button">The button to insert.</param>
+    /// <returns>True if the button was inserted; otherwise, false.</returns>
+    public bool InsertButtonAfter(string ExistingButtonName, GroupGridToolButton Button)
+    {
+        int Index = IndexOfToolButton(ExistingButtonName);
+        if (Index < 0 || Button == null)
+            return false;
+
+        PrepareToolButton(Button, fToolButtons[Index].Alignment);
+        fToolButtons.Insert(Index + 1, Button);
+        return true;
+    }
+    /// <summary>
+    /// Creates and inserts a toolbar button before an existing button.
+    /// </summary>
+    /// <param name="ExistingButtonName">The existing button name.</param>
+    /// <param name="Name">The button name.</param>
+    /// <param name="Text">The compact display text.</param>
+    /// <param name="ToolTip">The tooltip text.</param>
+    /// <returns>The inserted button, or null when the existing button is not found.</returns>
+    public GroupGridToolButton InsertButtonBefore(string ExistingButtonName, string Name, string Text, string ToolTip = "")
+    {
+        GroupGridToolButton Button = new() { Name = Name, Text = Text, ToolTip = ToolTip };
+        return InsertButtonBefore(ExistingButtonName, Button) ? Button : null;
+    }
+    /// <summary>
+    /// Creates and inserts a toolbar button after an existing button.
+    /// </summary>
+    /// <param name="ExistingButtonName">The existing button name.</param>
+    /// <param name="Name">The button name.</param>
+    /// <param name="Text">The compact display text.</param>
+    /// <param name="ToolTip">The tooltip text.</param>
+    /// <returns>The inserted button, or null when the existing button is not found.</returns>
+    public GroupGridToolButton InsertButtonAfter(string ExistingButtonName, string Name, string Text, string ToolTip = "")
+    {
+        GroupGridToolButton Button = new() { Name = Name, Text = Text, ToolTip = ToolTip };
+        return InsertButtonAfter(ExistingButtonName, Button) ? Button : null;
+    }
+    /// <summary>
     /// Adds a column to the grouping list.
     /// </summary>
     /// <param name="Column">The grid column.</param>
@@ -1473,6 +2439,104 @@ public class GroupGrid: Control
     public bool SetColumnVisible(GroupGridColumn Column, bool IsVisible)
     {
         return fEngine.SetColumnVisible(Column, IsVisible);
+    }
+    /// <summary>
+    /// Clears the active column sorting.
+    /// </summary>
+    /// <returns>True if sorting changed; otherwise, false.</returns>
+    public bool ClearSort()
+    {
+        return fEngine.ClearSort();
+    }
+    /// <summary>
+    /// Toggles sorting for a column using the None, Ascending, Descending cycle.
+    /// </summary>
+    /// <param name="Column">The column to sort by.</param>
+    /// <returns>True if sorting changed; otherwise, false.</returns>
+    public bool ToggleSort(GroupGridColumn Column)
+    {
+        return fEngine.ToggleSort(Column);
+    }
+    /// <summary>
+    /// Returns the text filter applied to a column.
+    /// </summary>
+    /// <param name="Column">The grid column.</param>
+    /// <returns>The filter text, or an empty string when no filter is applied.</returns>
+    public string GetColumnFilter(GroupGridColumn Column)
+    {
+        return fEngine.GetColumnFilter(Column);
+    }
+    /// <summary>
+    /// Sets the contains-text filter for a column.
+    /// </summary>
+    /// <param name="Column">The grid column.</param>
+    /// <param name="FilterText">The filter text.</param>
+    /// <returns>True if the filter changed; otherwise, false.</returns>
+    public bool SetColumnFilter(GroupGridColumn Column, string FilterText)
+    {
+        return fEngine.SetColumnFilter(Column, FilterText);
+    }
+    /// <summary>
+    /// Clears the text filter for a column.
+    /// </summary>
+    /// <param name="Column">The grid column.</param>
+    /// <returns>True if the filter changed; otherwise, false.</returns>
+    public bool ClearColumnFilter(GroupGridColumn Column)
+    {
+        return fEngine.ClearColumnFilter(Column);
+    }
+    /// <summary>
+    /// Clears all column filters.
+    /// </summary>
+    /// <returns>True if any filter was cleared; otherwise, false.</returns>
+    public bool ClearFilters()
+    {
+        return fEngine.ClearFilters();
+    }
+    /// <summary>
+    /// Returns true when a new row can be inserted after the current row.
+    /// </summary>
+    /// <returns>True when a row can be inserted; otherwise, false.</returns>
+    public bool CanInsertRow()
+    {
+        return fEngine.CanInsertRow();
+    }
+    /// <summary>
+    /// Inserts a new row after the current row.
+    /// </summary>
+    /// <returns>True if a row was inserted; otherwise, false.</returns>
+    public bool InsertRow()
+    {
+        bool Result = fEngine.InsertRow();
+        if (Result)
+            ScrollCurrentCellIntoViewCore();
+        return Result;
+    }
+    /// <summary>
+    /// Returns true when the current row can be deleted.
+    /// </summary>
+    /// <returns>True when the current row can be deleted; otherwise, false.</returns>
+    public bool CanDeleteCurrentRow()
+    {
+        return fEngine.CanDeleteCurrentRow();
+    }
+    /// <summary>
+    /// Deletes the current row.
+    /// </summary>
+    /// <returns>True if a row was deleted; otherwise, false.</returns>
+    public bool DeleteCurrentRow()
+    {
+        bool Result = fEngine.DeleteCurrentRow();
+        if (Result)
+            ScrollCurrentCellIntoViewCore();
+        return Result;
+    }
+    /// <summary>
+    /// Raises the edit requested event.
+    /// </summary>
+    public void RequestEdit()
+    {
+        fEngine.RequestEdit();
     }
     /// <summary>
     /// Sets the expanded state of a group node by visible-node index.
@@ -1548,7 +2612,7 @@ public class GroupGrid: Control
     /// <returns>True if editing started; otherwise, false.</returns>
     public bool BeginEdit()
     {
-        return fEngine.BeginEdit();
+        return BeginCellEdit(false, null);
     }
     /// <summary>
     /// Commits the edited value.
@@ -1557,7 +2621,10 @@ public class GroupGrid: Control
     /// <returns>True if the edit was committed; otherwise, false.</returns>
     public bool CommitEdit(object Value)
     {
-        return fEngine.CommitEdit(Value);
+        bool Result = fEngine.CommitEdit(Value);
+        if (Result)
+            fCellEditText = string.Empty;
+        return Result;
     }
     /// <summary>
     /// Cancels the current edit.
@@ -1565,7 +2632,7 @@ public class GroupGrid: Control
     /// <returns>True if an edit was canceled; otherwise, false.</returns>
     public bool CancelEdit()
     {
-        return fEngine.CancelEdit();
+        return CancelCellEdit();
     }
     /// <summary>
     /// Moves the current cell by visible row and column deltas.
@@ -1592,33 +2659,48 @@ public class GroupGrid: Control
 
         double ContentWidth = GetBodyContentWidth();
         double Y = 0;
-        DrawBand(Context, new Rect(0, Y, Bounds.Width, fEngine.LayoutMetrics.ToolBarHeight), fToolBarBrush);
-        Y += fEngine.LayoutMetrics.ToolBarHeight;
+        if (fIsToolBarVisible)
+        {
+            DrawToolBar(Context, new Rect(0, Y, Bounds.Width, fEngine.LayoutMetrics.ToolBarHeight));
+            Y += fEngine.LayoutMetrics.ToolBarHeight;
+        }
 
-        DrawGroupPanel(Context, Y, fEngine.LayoutMetrics.GroupPanelHeight, ContentWidth);
-        if (HasVerticalScrollBar())
-            DrawBand(Context, new Rect(ContentWidth, Y, Bounds.Width - ContentWidth, fEngine.LayoutMetrics.GroupPanelHeight), fGroupPanelBrush);
-        Y += fEngine.LayoutMetrics.GroupPanelHeight;
+        if (fIsGroupPanelVisible)
+        {
+            DrawGroupPanel(Context, Y, fEngine.LayoutMetrics.GroupPanelHeight, ContentWidth);
+            if (HasVerticalScrollBar())
+                DrawBand(Context, new Rect(ContentWidth, Y, Bounds.Width - ContentWidth, fEngine.LayoutMetrics.GroupPanelHeight), fGroupPanelBrush);
+            Y += fEngine.LayoutMetrics.GroupPanelHeight;
+        }
 
-        DrawColumns(Context, Y, fEngine.LayoutMetrics.ColumnHeaderHeight, ContentWidth, fHeaderBrush, false);
-        if (HasVerticalScrollBar())
-            DrawBand(Context, new Rect(ContentWidth, Y, Bounds.Width - ContentWidth, fEngine.LayoutMetrics.ColumnHeaderHeight), fHeaderBrush);
-        Y += fEngine.LayoutMetrics.ColumnHeaderHeight;
+        if (fIsColumnHeadersVisible)
+        {
+            DrawColumns(Context, Y, fEngine.LayoutMetrics.ColumnHeaderHeight, ContentWidth, fHeaderBrush, false);
+            if (HasVerticalScrollBar())
+                DrawBand(Context, new Rect(ContentWidth, Y, Bounds.Width - ContentWidth, fEngine.LayoutMetrics.ColumnHeaderHeight), fHeaderBrush);
+            Y += fEngine.LayoutMetrics.ColumnHeaderHeight;
+        }
 
-        DrawColumns(Context, Y, fEngine.LayoutMetrics.FilterRowHeight, ContentWidth, fFilterBrush, true);
-        if (HasVerticalScrollBar())
-            DrawBand(Context, new Rect(ContentWidth, Y, Bounds.Width - ContentWidth, fEngine.LayoutMetrics.FilterRowHeight), fFilterBrush);
-        Y += fEngine.LayoutMetrics.FilterRowHeight;
+        if (fIsFilterPanelVisible)
+        {
+            DrawColumns(Context, Y, fEngine.LayoutMetrics.FilterRowHeight, ContentWidth, fFilterBrush, true);
+            if (HasVerticalScrollBar())
+                DrawBand(Context, new Rect(ContentWidth, Y, Bounds.Width - ContentWidth, fEngine.LayoutMetrics.FilterRowHeight), fFilterBrush);
+            Y += fEngine.LayoutMetrics.FilterRowHeight;
+        }
 
         double BodyHeight = GetBodyHeight();
         DrawBody(Context, Y, ContentWidth);
         DrawVerticalScrollBar(Context);
         Y += BodyHeight;
 
-        DrawFooter(Context, Y, fEngine.LayoutMetrics.FooterSummaryHeight, ContentWidth);
-        if (HasVerticalScrollBar())
-            DrawBand(Context, new Rect(ContentWidth, Y, Bounds.Width - ContentWidth, fEngine.LayoutMetrics.FooterSummaryHeight), fFooterBrush);
-        Y += fEngine.LayoutMetrics.FooterSummaryHeight;
+        if (fIsTotalsSummaryVisible)
+        {
+            DrawFooter(Context, Y, fEngine.LayoutMetrics.FooterSummaryHeight, ContentWidth);
+            if (HasVerticalScrollBar())
+                DrawBand(Context, new Rect(ContentWidth, Y, Bounds.Width - ContentWidth, fEngine.LayoutMetrics.FooterSummaryHeight), fFooterBrush);
+            Y += fEngine.LayoutMetrics.FooterSummaryHeight;
+        }
 
         DrawHorizontalScrollBar(Context);
         DrawColumnResizeGuide(Context);
@@ -1652,6 +2734,10 @@ public class GroupGrid: Control
     /// </summary>
     public ObservableCollection<GroupGridColumn> Columns => fEngine.Columns;
     /// <summary>
+    /// Gets the toolbar buttons. The built-in buttons are named Insert, Delete, and Edit.
+    /// </summary>
+    public ObservableCollection<GroupGridToolButton> ToolButtons => fToolButtons;
+    /// <summary>
     /// Gets the grouped columns in grouping order.
     /// </summary>
     public IReadOnlyList<GroupGridColumn> GroupColumns => fEngine.GroupColumns;
@@ -1674,7 +2760,24 @@ public class GroupGrid: Control
         }
     }
     /// <summary>
-    /// Gets or sets an item source that implements <see cref="IList{T}"/>.
+    /// Gets or sets a value indicating whether editing is disabled for the whole grid.
+    /// </summary>
+    public bool IsReadOnly
+    {
+        get => fEngine.IsReadOnly;
+        set => fEngine.IsReadOnly = value;
+    }
+    /// <summary>
+    /// Gets or sets a value indicating whether the column manager menu item is visible in the column context menu.
+    /// </summary>
+    public bool IsColumnManagerMenuItemVisible
+    {
+        get => fIsColumnManagerMenuItemVisible;
+        set => fIsColumnManagerMenuItemVisible = value;
+    }
+    /// <summary>
+    /// Gets or sets an item source that is a <see cref="DataTable"/>, <see cref="DataView"/>, or implements <see cref="IList{T}"/>.
+    /// When a <see cref="DataTable"/> is assigned, its <see cref="DataTable.DefaultView"/> is used.
     /// </summary>
     public object ItemsSource
     {
@@ -1682,7 +2785,7 @@ public class GroupGrid: Control
         set => SetItemsSource(value);
     }
     /// <summary>
-    /// Gets or sets a value indicating whether columns are generated from public item properties when columns are empty.
+    /// Gets or sets a value indicating whether columns are generated from public item properties or data-view columns when columns are empty.
     /// </summary>
     public bool AutoGenerateColumns
     {
@@ -1693,13 +2796,77 @@ public class GroupGrid: Control
                 return;
 
             fAutoGenerateColumns = value;
-            GenerateColumnsFromItemType(FindListItemType(fItemsSource));
+            GenerateColumnsFromItemsSource(fItemsSource);
         }
     }
     /// <summary>
     /// Gets the layout metrics used by the grid.
     /// </summary>
     public GroupGridLayoutMetrics LayoutMetrics => fEngine.LayoutMetrics;
+    /// <summary>
+    /// Gets or sets a value indicating whether the toolbar band is visible.
+    /// </summary>
+    public bool IsToolBarVisible
+    {
+        get => fIsToolBarVisible;
+        set => SetBandVisible(ref fIsToolBarVisible, value);
+    }
+    /// <summary>
+    /// Gets or sets a value indicating whether the filter panel band is visible.
+    /// </summary>
+    public bool IsFilterPanelVisible
+    {
+        get => fIsFilterPanelVisible;
+        set => SetBandVisible(ref fIsFilterPanelVisible, value);
+    }
+    /// <summary>
+    /// Gets or sets a value indicating whether column headers are visible.
+    /// </summary>
+    public bool IsColumnHeadersVisible
+    {
+        get => fIsColumnHeadersVisible;
+        set => SetBandVisible(ref fIsColumnHeadersVisible, value);
+    }
+    /// <summary>
+    /// Gets or sets a value indicating whether the group panel band is visible.
+    /// </summary>
+    public bool IsGroupPanelVisible
+    {
+        get => fIsGroupPanelVisible;
+        set => SetBandVisible(ref fIsGroupPanelVisible, value);
+    }
+    /// <summary>
+    /// Gets or sets a value indicating whether the totals summary band is visible.
+    /// </summary>
+    public bool IsTotalsSummaryVisible
+    {
+        get => fIsTotalsSummaryVisible;
+        set => SetBandVisible(ref fIsTotalsSummaryVisible, value);
+    }
+    /// <summary>
+    /// Gets or sets a value indicating whether the default insert toolbar button is visible.
+    /// </summary>
+    public bool IsInsertButtonVisible
+    {
+        get => GetDefaultToolButtonVisible(InsertToolButtonName);
+        set => SetDefaultToolButtonVisible(InsertToolButtonName, value);
+    }
+    /// <summary>
+    /// Gets or sets a value indicating whether the default delete toolbar button is visible.
+    /// </summary>
+    public bool IsDeleteButtonVisible
+    {
+        get => GetDefaultToolButtonVisible(DeleteToolButtonName);
+        set => SetDefaultToolButtonVisible(DeleteToolButtonName, value);
+    }
+    /// <summary>
+    /// Gets or sets a value indicating whether the default edit toolbar button is visible.
+    /// </summary>
+    public bool IsEditButtonVisible
+    {
+        get => GetDefaultToolButtonVisible(EditToolButtonName);
+        set => SetDefaultToolButtonVisible(EditToolButtonName, value);
+    }
     /// <summary>
     /// Gets the current cell.
     /// </summary>
@@ -1712,6 +2879,22 @@ public class GroupGrid: Control
     /// Gets the editing cell.
     /// </summary>
     public GroupGridCell EditingCell => fEngine.EditingCell;
+    /// <summary>
+    /// Gets the sorted column, or null when sorting is not active.
+    /// </summary>
+    public GroupGridColumn SortColumn => fEngine.SortColumn;
+    /// <summary>
+    /// Gets the active sort direction.
+    /// </summary>
+    public GroupGridSortDirection SortDirection => fEngine.SortDirection;
+    /// <summary>
+    /// Gets the number of active column filters.
+    /// </summary>
+    public int FilterCount => fEngine.FilterCount;
+    /// <summary>
+    /// Gets a value indicating whether any column filter is active.
+    /// </summary>
+    public bool HasFilters => fEngine.HasFilters;
     /// <summary>
     /// Gets a value indicating whether the grid has a current cell.
     /// </summary>
@@ -1754,11 +2937,37 @@ public class GroupGrid: Control
             if (fEngine == null)
                 return 0;
 
-            return fEngine.LayoutMetrics.ToolBarHeight
-                   + fEngine.LayoutMetrics.GroupPanelHeight
-                   + fEngine.LayoutMetrics.ColumnHeaderHeight
-                   + fEngine.LayoutMetrics.FilterRowHeight
-                   + fEngine.LayoutMetrics.FooterSummaryHeight;
+            return GetBodyFixedTopHeight() + GetTotalsSummaryHeight();
         }
     }
+
+    // ● events
+    /// <summary>
+    /// Occurs when the column manager menu item is clicked.
+    /// </summary>
+    public event EventHandler ColumnManagerRequested;
+    /// <summary>
+    /// Occurs when a custom toolbar button is clicked.
+    /// </summary>
+    public event EventHandler<GroupGridToolButtonEventArgs> ToolButtonClicked;
+    /// <summary>
+    /// Occurs before a row is inserted.
+    /// </summary>
+    public event EventHandler<GroupGridRowOperationEventArgs> InsertingRow;
+    /// <summary>
+    /// Occurs after a row is inserted.
+    /// </summary>
+    public event EventHandler<GroupGridRowOperationEventArgs> RowInserted;
+    /// <summary>
+    /// Occurs before a row is deleted. Set Cancel to true to stop the deletion.
+    /// </summary>
+    public event EventHandler<GroupGridRowOperationEventArgs> DeletingRow;
+    /// <summary>
+    /// Occurs after a row is deleted.
+    /// </summary>
+    public event EventHandler<GroupGridRowOperationEventArgs> RowDeleted;
+    /// <summary>
+    /// Occurs when the edit toolbar command is requested.
+    /// </summary>
+    public event EventHandler EditRequested;
 }

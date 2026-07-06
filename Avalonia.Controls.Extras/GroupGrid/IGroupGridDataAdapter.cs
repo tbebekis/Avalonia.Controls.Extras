@@ -33,6 +33,30 @@ public interface IGroupGridDataAdapter
     /// <param name="Column">The grid column.</param>
     /// <returns>True when the cell value can be set; otherwise, false.</returns>
     bool CanSetValue(int RowIndex, GroupGridColumn Column);
+    /// <summary>
+    /// Returns true when the adapter can insert a new row after a specified row index.
+    /// </summary>
+    /// <param name="RowIndex">The adapter row index, or -1 to insert at the start.</param>
+    /// <returns>True when a new row can be inserted; otherwise, false.</returns>
+    bool CanInsertRow(int RowIndex) => false;
+    /// <summary>
+    /// Inserts a new row after a specified row index.
+    /// </summary>
+    /// <param name="RowIndex">The adapter row index, or -1 to insert at the start.</param>
+    /// <returns>The inserted adapter row index, or -1 when no row was inserted.</returns>
+    int InsertRow(int RowIndex) => -1;
+    /// <summary>
+    /// Returns true when the adapter can delete a specified row.
+    /// </summary>
+    /// <param name="RowIndex">The adapter row index.</param>
+    /// <returns>True when the row can be deleted; otherwise, false.</returns>
+    bool CanDeleteRow(int RowIndex) => false;
+    /// <summary>
+    /// Deletes a specified row.
+    /// </summary>
+    /// <param name="RowIndex">The adapter row index.</param>
+    /// <returns>True if the row was deleted; otherwise, false.</returns>
+    bool DeleteRow(int RowIndex) => false;
 
     // ● properties
     /// <summary>

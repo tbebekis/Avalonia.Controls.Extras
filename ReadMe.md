@@ -15,8 +15,9 @@ Current implemented or planned feature map for `GroupGrid`.
 - Framework-neutral core, with no Tripous dependency.
 - Adapter-based data access through `IGroupGridDataAdapter`.
 - Convenience `ItemsSource` support for POCO/list sources.
+- `ItemsSource` support for `DataTable` and `DataView`; assigning a `DataTable` uses its `DefaultView`.
 - Optional auto-generation of columns from public POCO properties.
-- Planned `ItemsSource` support for `DataTable` and `DataView`.
+- Optional auto-generation of columns from `DataView` data columns.
 
 ### Columns
 
@@ -43,6 +44,7 @@ Current implemented or planned feature map for `GroupGrid`.
 - Footer total summary band.
 - Vertical scrollbar.
 - Horizontal scrollbar.
+- Visibility properties for toolbar, group panel, column headers, filter panel, and totals summary bands.
 
 ### Grouping
 
@@ -64,6 +66,7 @@ Current implemented or planned feature map for `GroupGrid`.
 - Group header rows.
 - Group summary rows.
 - Footer total summary row.
+- Summary context menu for group and total summary aggregate selection.
 - Summary aggregate kinds:
   - Count
   - Sum
@@ -82,8 +85,47 @@ Current implemented or planned feature map for `GroupGrid`.
 - Column reorder by dragging headers.
 - Floating header ghost while dragging columns.
 - Drop insertion guide for column drag/drop.
+- Column header context menu.
 - Vertical and horizontal scroll thumb dragging.
 - Scrollbar track page scrolling.
+- Checkbox/boolean cell toggle by mouse click and `Space`.
+
+### Toolbar
+
+- Compact toolbar buttons rendered in the toolbar band.
+- Built-in `Insert` and `Delete` buttons are visible by default.
+- Built-in `Edit` button exists but is hidden by default.
+- Insert creates an empty row after the current row when the source supports insertion.
+- Delete removes the current row through cancellable row-operation events.
+- The built-in delete button shows a small default confirmation dialog only when no `DeletingRow` handler is attached.
+- Edit raises an event for the application to handle.
+- Custom toolbar buttons can be added to the left group or aligned at the far right.
+- Toolbar buttons support tooltip text.
+- Toolbar API includes add and insert-before/insert-after helpers.
+
+### Sorting And Filtering
+
+- Engine-owned single-column sorting.
+- Sorting cycles through none, ascending, descending, and back to none.
+- Sort glyph displayed at the right edge of the sorted column header.
+- Engine-owned per-column filter state.
+- Filter row cells accept typed filter text.
+- Filter text is applied when `Enter` is pressed.
+- Plain filter text performs contains matching.
+- Comparison filter operators:
+  - `>`
+  - `>=`
+  - `<`
+  - `<=`
+  - `=`
+  - `<>`
+  - `!=`
+- Wildcard filter matching with `%` or `*`.
+- `Backspace` edits active filter text.
+- `Delete` clears the active column filter.
+- `Enter` applies active filter text.
+- `Escape` cancels filter editing.
+- Column context menu can clear a column filter or all filters.
 
 ### Editing
 
@@ -91,6 +133,7 @@ Current implemented or planned feature map for `GroupGrid`.
 - Begin edit.
 - Commit edit.
 - Cancel edit.
+- First-pass inline text editing with `Enter` commit and `Escape` cancel.
 - Validation and commit events.
 
 ### Hit Testing
@@ -106,12 +149,6 @@ Current implemented or planned feature map for `GroupGrid`.
   - reorder columns
   - manage grouped columns
   - restore/reset column layout
-- `DataTable` and `DataView` support through `ItemsSource`.
-- Sorting.
-- Filtering.
-- Toolbar commands.
-- Column context menu.
-- Checkbox click toggle.
 - In-place editor controls.
 - Export:
   - CSV
