@@ -86,6 +86,10 @@ Current implemented or planned feature map for `GroupGrid`.
 - Floating header ghost while dragging columns.
 - Drop insertion guide for column drag/drop.
 - Column header context menu.
+- Optional column manager context menu item.
+- Default column manager dialog when no `ColumnManagerRequested` handler is attached.
+- `GroupGridColumnManagerDialog` is a separate window that edits a serializable `GroupGridSettings` object.
+- `GroupGridSettings` includes a settings name and per-column order, visibility, grouping, filter, and summary settings.
 - Vertical and horizontal scroll thumb dragging.
 - Scrollbar track page scrolling.
 - Checkbox/boolean cell toggle by mouse click and `Space`.
@@ -144,11 +148,6 @@ Current implemented or planned feature map for `GroupGrid`.
 
 ## GroupGrid Roadmap
 
-- Column management dialog:
-  - show/hide columns
-  - reorder columns
-  - manage grouped columns
-  - restore/reset column layout
 - In-place editor controls.
 - Export:
   - CSV

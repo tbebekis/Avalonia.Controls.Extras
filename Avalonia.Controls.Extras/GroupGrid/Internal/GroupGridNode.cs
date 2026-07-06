@@ -48,6 +48,15 @@ internal class GroupGridNode
         fSummaries.Clear();
     }
     /// <summary>
+    /// Removes all summary values from this node and its descendants.
+    /// </summary>
+    public void ClearSummaries()
+    {
+        fSummaries.Clear();
+        foreach (GroupGridNode Node in fChildren)
+            Node.ClearSummaries();
+    }
+    /// <summary>
     /// Sets a summary value.
     /// </summary>
     /// <param name="Summary">The summary value.</param>

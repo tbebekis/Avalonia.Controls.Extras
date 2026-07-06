@@ -46,6 +46,7 @@ public class GroupGrid: Control
     bool fIsColumnDragging;
     bool fIsColumnDragActive;
     bool fIsDeleteConfirmationOpen;
+    bool fIsColumnManagerOpen;
     bool fIsToolBarVisible = true;
     bool fIsFilterPanelVisible = true;
     bool fIsColumnHeadersVisible = true;
@@ -1044,7 +1045,7 @@ public class GroupGrid: Control
         if (fIsColumnManagerMenuItemVisible)
         {
             Items.Add(new Separator());
-            Items.Add(CreateMenuItem("Column Manager...", ColumnManagerRequested != null, () => ColumnManagerRequested?.Invoke(this, EventArgs.Empty)));
+            Items.Add(CreateMenuItem("Column Manager...", true, RequestColumnManager));
         }
 
         Menu.ItemsSource = Items;
@@ -1077,7 +1078,7 @@ public class GroupGrid: Control
         foreach (GroupGridAggregateKind AggregateKind in Enum.GetValues(typeof(GroupGridAggregateKind)))
         {
             string Header = AggregateKind == Current ? "* " + AggregateKind : AggregateKind.ToString();
-            Items.Add(CreateMenuItem(Header, true, () => SetSummaryAggregate(Column, IsGroupSummary, AggregateKind)));
+            Items.Add(CreateMenuItem(Header, Column.CanAggregate(AggregateKind), () => SetSummaryAggregate(Column, IsGroupSummary, AggregateKind)));
         }
 
         Menu.ItemsSource = Items;
@@ -1086,13 +1087,19 @@ public class GroupGrid: Control
     }
     void SetSummaryAggregate(GroupGridColumn Column, bool IsGroupSummary, GroupGridAggregateKind AggregateKind)
     {
-        if (Column == null)
+        if (Column == null || !Column.CanAggregate(AggregateKind))
             return;
 
         if (IsGroupSummary)
+        {
             Column.GroupSummary = AggregateKind;
+            if (Column.TotalSummary == GroupGridAggregateKind.None)
+                Column.TotalSummary = AggregateKind;
+        }
         else
+        {
             Column.TotalSummary = AggregateKind;
+        }
 
         fEngine.RebuildProjection();
         InvalidateVisual();
@@ -1269,6 +1276,41 @@ public class GroupGrid: Control
         CancelButton.Click += (Sender, Args) => Dialog.Close(false);
         DeleteButton.Click += (Sender, Args) => Dialog.Close(true);
         return Dialog.ShowDialog<bool>(Owner);
+    }
+    async void RequestColumnManager()
+    {
+        if (ColumnManagerRequested != null)
+        {
+            ColumnManagerRequested(this, EventArgs.Empty);
+            return;
+        }
+
+        if (fIsColumnManagerOpen)
+            return;
+
+        fIsColumnManagerOpen = true;
+        try
+        {
+            await ShowDefaultColumnManagerAsync();
+        }
+        finally
+        {
+            fIsColumnManagerOpen = false;
+        }
+    }
+    async Task<bool> ShowDefaultColumnManagerAsync()
+    {
+        Window Owner = TopLevel.GetTopLevel(this) as Window;
+        if (Owner == null)
+            return false;
+
+        GroupGridSettings Settings = CreateSettings();
+        GroupGridColumnManagerDialog Dialog = new(Settings, fEngine.Columns);
+        bool Result = await Dialog.ShowDialog<bool>(Owner);
+        if (Result)
+            ApplySettings(Dialog.Settings);
+
+        return Result;
     }
     void DrawToolBar(DrawingContext Context, Rect Rect)
     {
@@ -2299,6 +2341,85 @@ public class GroupGrid: Control
     public IReadOnlyList<GroupGridColumn> GetGroupedColumns()
     {
         return fEngine.GroupColumns.ToList();
+    }
+    /// <summary>
+    /// Creates a serializable settings object from the current grid layout.
+    /// </summary>
+    /// <param name="Name">The settings name.</param>
+    /// <returns>The grid settings.</returns>
+    public GroupGridSettings CreateSettings(string Name = "Default")
+    {
+        GroupGridSettings Result = new()
+        {
+            Name = string.IsNullOrWhiteSpace(Name) ? "Default" : Name,
+        };
+
+        int Index = 0;
+        foreach (GroupGridColumn Column in fEngine.Columns)
+        {
+            Result.Columns.Add(new GroupGridColumnSettings
+            {
+                Name = Column.Name,
+                Header = string.IsNullOrWhiteSpace(Column.Header) ? Column.Name : Column.Header,
+                IsVisible = Column.IsVisible,
+                VisibleIndex = Index++,
+                GroupIndex = IndexOfGroupColumn(Column),
+                FilterText = fEngine.GetColumnFilter(Column),
+                GroupSummary = Column.GroupSummary,
+                TotalSummary = Column.TotalSummary,
+            });
+        }
+
+        return Result;
+    }
+    /// <summary>
+    /// Applies a serializable settings object to the current grid layout.
+    /// </summary>
+    /// <param name="Settings">The grid settings.</param>
+    public void ApplySettings(GroupGridSettings Settings)
+    {
+        if (Settings == null)
+            return;
+
+        Dictionary<string, GroupGridColumn> ColumnMap = fEngine.Columns.ToDictionary(Column => Column.Name, StringComparer.OrdinalIgnoreCase);
+        List<GroupGridColumnSettings> OrderedSettings = Settings.Columns
+            .Where(Item => Item != null && ColumnMap.ContainsKey(Item.Name))
+            .OrderBy(Item => Item.VisibleIndex)
+            .ToList();
+
+        for (int Index = 0; Index < OrderedSettings.Count; Index++)
+        {
+            GroupGridColumn Column = ColumnMap[OrderedSettings[Index].Name];
+            int OldIndex = fEngine.Columns.IndexOf(Column);
+            if (OldIndex >= 0 && OldIndex != Index)
+                fEngine.Columns.Move(OldIndex, Index);
+        }
+
+        foreach (GroupGridColumnSettings Item in OrderedSettings)
+        {
+            GroupGridColumn Column = ColumnMap[Item.Name];
+            fEngine.SetColumnVisible(Column, Item.IsVisible);
+            if (string.IsNullOrWhiteSpace(Item.FilterText))
+                fEngine.ClearColumnFilter(Column);
+            else
+                fEngine.SetColumnFilter(Column, Item.FilterText);
+
+            Column.GroupSummary = Column.CanAggregate(Item.GroupSummary) ? Item.GroupSummary : GroupGridAggregateKind.None;
+            Column.TotalSummary = Column.CanAggregate(Item.TotalSummary) ? Item.TotalSummary : GroupGridAggregateKind.None;
+        }
+
+        foreach (GroupGridColumn Column in fEngine.GroupColumns.ToList())
+            fEngine.UngroupColumn(Column);
+        foreach (GroupGridColumnSettings Item in OrderedSettings.Where(Item => Item.GroupIndex >= 0).OrderBy(Item => Item.GroupIndex))
+        {
+            GroupGridColumn Column = ColumnMap[Item.Name];
+            if (Item.IsVisible && Column.CanUserGroup)
+                fEngine.GroupColumn(Column);
+        }
+
+        fEngine.RebuildProjection();
+        UpdateViewport(Bounds.Size);
+        InvalidateVisual();
     }
     /// <summary>
     /// Returns a toolbar button by name.

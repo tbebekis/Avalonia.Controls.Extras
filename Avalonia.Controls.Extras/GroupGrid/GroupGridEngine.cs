@@ -497,6 +497,9 @@ public class GroupGridEngine
     }
     object CalculateSummaryValue(IEnumerable<GroupGridNode> DataRowNodes, GroupGridColumn Column, GroupGridAggregateKind AggregateKind)
     {
+        if (Column == null || !Column.CanAggregate(AggregateKind))
+            return null;
+
         List<GroupGridNode> Nodes = DataRowNodes.ToList();
 
         if (AggregateKind == GroupGridAggregateKind.Count)
@@ -513,7 +516,7 @@ public class GroupGridEngine
         switch (AggregateKind)
         {
             case GroupGridAggregateKind.Sum:
-                return Values.Sum(Value => Convert.ToDecimal(Value, CultureInfo.CurrentCulture));
+                return CalculateNumericSum(Values);
             case GroupGridAggregateKind.Min:
                 return Values
                     .OfType<IComparable>()
@@ -525,10 +528,75 @@ public class GroupGridEngine
                     .OrderByDescending(Value => Value)
                     .FirstOrDefault();
             case GroupGridAggregateKind.Average:
-                return Values.Average(Value => Convert.ToDecimal(Value, CultureInfo.CurrentCulture));
+                return CalculateAverage(Values, Column);
         }
 
         return null;
+    }
+    bool TryConvertToDecimal(object Value, out decimal Result)
+    {
+        Result = 0;
+        if (Value == null || Value == DBNull.Value || Value is DateTime || Value is DateTimeOffset)
+            return false;
+
+        try
+        {
+            Result = Convert.ToDecimal(Value, CultureInfo.CurrentCulture);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+    object CalculateNumericSum(IEnumerable<object> Values)
+    {
+        List<decimal> Decimals = Values
+            .Select(Value => TryConvertToDecimal(Value, out decimal Decimal) ? Decimal : (decimal?)null)
+            .Where(Value => Value.HasValue)
+            .Select(Value => Value.Value)
+            .ToList();
+        return Decimals.Count == 0 ? null : Decimals.Sum();
+    }
+    long CalculateAverageTicks(List<long> Ticks)
+    {
+        if (Ticks.Count == 0)
+            return 0;
+
+        long BaseTicks = Ticks[0];
+        decimal OffsetSum = 0;
+        foreach (long Value in Ticks)
+            OffsetSum += Value - BaseTicks;
+
+        return BaseTicks + (long)(OffsetSum / Ticks.Count);
+    }
+    object CalculateAverage(IEnumerable<object> Values, GroupGridColumn Column)
+    {
+        Type ValueType = Nullable.GetUnderlyingType(Column.ValueType) ?? Column.ValueType;
+        if (ValueType == typeof(DateTime))
+        {
+            List<long> Ticks = Values
+                .OfType<DateTime>()
+                .Select(Value => Value.Ticks)
+                .ToList();
+            return Ticks.Count == 0 ? null : new DateTime(CalculateAverageTicks(Ticks), DateTimeKind.Unspecified);
+        }
+
+        if (ValueType == typeof(DateTimeOffset))
+        {
+            List<long> Ticks = Values
+                .OfType<DateTimeOffset>()
+                .Select(Value => Value.Ticks)
+                .ToList();
+            return Ticks.Count == 0 ? null : new DateTimeOffset(new DateTime(CalculateAverageTicks(Ticks), DateTimeKind.Unspecified));
+        }
+
+        List<decimal> Decimals = Values
+            .Select(Value => TryConvertToDecimal(Value, out decimal Decimal) ? Decimal : (decimal?)null)
+            .Where(Value => Value.HasValue)
+            .Select(Value => Value.Value)
+            .ToList();
+        return Decimals.Count == 0 ? null : Decimals.Average();
     }
     void CalculateGroupSummaries(GroupGridNode Node)
     {
@@ -543,7 +611,7 @@ public class GroupGridEngine
 
         List<GroupGridNode> DataRowNodes = EnumerateDataRows(Node).ToList();
         foreach (GroupGridColumn Column in Columns)
-            if (Column.GroupSummary != GroupGridAggregateKind.None)
+            if (Column.GroupSummary != GroupGridAggregateKind.None && Column.CanAggregate(Column.GroupSummary))
             {
                 object Value = CalculateSummaryValue(DataRowNodes, Column, Column.GroupSummary);
                 Node.SetSummary(new GroupGridSummaryValue(Column, Column.GroupSummary, Value));
@@ -553,7 +621,7 @@ public class GroupGridEngine
     {
         List<GroupGridNode> DataRowNodes = EnumerateDataRows(fProjection.Root).ToList();
         foreach (GroupGridColumn Column in Columns)
-            if (Column.TotalSummary != GroupGridAggregateKind.None)
+            if (Column.TotalSummary != GroupGridAggregateKind.None && Column.CanAggregate(Column.TotalSummary))
             {
                 object Value = CalculateSummaryValue(DataRowNodes, Column, Column.TotalSummary);
                 fProjection.Root.SetSummary(new GroupGridSummaryValue(Column, Column.TotalSummary, Value));
@@ -561,6 +629,7 @@ public class GroupGridEngine
     }
     void CalculateSummaries()
     {
+        fProjection.Root.ClearSummaries();
         CalculateGroupSummaries(fProjection.Root);
         CalculateTotalSummaries();
     }

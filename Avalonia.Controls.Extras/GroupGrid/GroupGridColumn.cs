@@ -36,6 +36,43 @@ public class GroupGridColumn
     /// <returns>The parsed value.</returns>
     public virtual object ParseValue(object Value) => Value;
     /// <summary>
+    /// Returns true when an aggregate kind is valid for this column.
+    /// </summary>
+    /// <param name="AggregateKind">The aggregate kind.</param>
+    /// <returns>True when the aggregate kind is valid; otherwise, false.</returns>
+    public virtual bool CanAggregate(GroupGridAggregateKind AggregateKind)
+    {
+        Type Type = Nullable.GetUnderlyingType(ValueType) ?? ValueType;
+        bool IsNumeric = Type == typeof(byte)
+                         || Type == typeof(sbyte)
+                         || Type == typeof(short)
+                         || Type == typeof(ushort)
+                         || Type == typeof(int)
+                         || Type == typeof(uint)
+                         || Type == typeof(long)
+                         || Type == typeof(ulong)
+                         || Type == typeof(float)
+                         || Type == typeof(double)
+                         || Type == typeof(decimal);
+        bool IsDate = Type == typeof(DateTime) || Type == typeof(DateTimeOffset);
+
+        switch (AggregateKind)
+        {
+            case GroupGridAggregateKind.None:
+            case GroupGridAggregateKind.Count:
+                return true;
+            case GroupGridAggregateKind.Sum:
+                return IsNumeric;
+            case GroupGridAggregateKind.Average:
+                return IsNumeric || IsDate;
+            case GroupGridAggregateKind.Min:
+            case GroupGridAggregateKind.Max:
+                return Type != typeof(bool) && typeof(IComparable).IsAssignableFrom(Type);
+        }
+
+        return false;
+    }
+    /// <summary>
     /// Formats a summary value for display.
     /// </summary>
     /// <param name="Summary">The summary value.</param>
@@ -44,13 +81,12 @@ public class GroupGridColumn
     {
         if (Summary.AggregateKind == GroupGridAggregateKind.None)
             return string.Empty;
+        if (Summary.AggregateKind == GroupGridAggregateKind.Count)
+            return string.Format(CultureInfo.CurrentCulture, "count={0}", Summary.Value);
 
         string Prefix = string.Empty;
         switch (Summary.AggregateKind)
         {
-            case GroupGridAggregateKind.Count:
-                Prefix = "count";
-                break;
             case GroupGridAggregateKind.Sum:
                 Prefix = "sum";
                 break;
