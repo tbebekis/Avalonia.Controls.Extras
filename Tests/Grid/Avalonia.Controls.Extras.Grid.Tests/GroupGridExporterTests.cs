@@ -27,16 +27,35 @@ public class GroupGridExporterTests
     {
         GroupGridExportColumn NameColumn = new(new GroupGridTextColumn { Name = "Name", Header = "Name" });
         GroupGridExportColumn AmountColumn = new(new GroupGridNumberColumn { Name = "Amount", Header = "Amount" });
+        GroupGridExportRow GroupRow = new(
+            new GroupGridRowInfo(GroupGridRowKind.Group, 0, -1, 0, NameColumn.Column, "Group", null, true),
+            "Name: Group",
+            Array.Empty<GroupGridExportCell>());
         GroupGridExportRow Row = new(
-            new GroupGridRowInfo(GroupGridRowKind.DataRow, 0, 0, 0, null, null, null, false),
+            new GroupGridRowInfo(GroupGridRowKind.DataRow, 1, 0, 1, null, null, null, false),
             string.Empty,
             new[]
             {
                 new GroupGridExportCell(NameColumn, "Alpha, \"One\"", "Alpha, \"One\""),
                 new GroupGridExportCell(AmountColumn, 12.5m, "12.5"),
             });
+        GroupGridExportRow GroupSummaryRow = new(
+            new GroupGridRowInfo(GroupGridRowKind.GroupSummary, 2, -1, 1, null, null, null, false),
+            string.Empty,
+            new[]
+            {
+                new GroupGridExportCell(NameColumn, null, string.Empty),
+                new GroupGridExportCell(AmountColumn, 12.5m, "sum=12.5"),
+            });
 
-        return new GroupGridExportSnapshot(new[] { NameColumn, AmountColumn }, new[] { Row }, Array.Empty<GroupGridExportCell>());
+        return new GroupGridExportSnapshot(
+            new[] { NameColumn, AmountColumn },
+            new[] { GroupRow, Row, GroupSummaryRow },
+            new[]
+            {
+                new GroupGridExportCell(NameColumn, null, string.Empty),
+                new GroupGridExportCell(AmountColumn, 12.5m, "sum=12.5"),
+            });
     }
     string TempPath(string Extension)
     {
@@ -89,10 +108,10 @@ public class GroupGridExporterTests
         }
     }
     /// <summary>
-    /// Verifies HTML escaping.
+    /// Verifies HTML escaping and grouped export rows.
     /// </summary>
     [Fact]
-    public void HtmlExporter_WithSpecialText_EncodesHtmlCells()
+    public void HtmlExporter_WithSpecialTextAndGroups_EncodesFullGrid()
     {
         string FilePath = TempPath("html");
         try
@@ -101,7 +120,13 @@ public class GroupGridExporterTests
             string Text = File.ReadAllText(FilePath);
 
             Assert.Contains("<table>", Text);
+            Assert.Contains("class=\"group-row\"", Text);
+            Assert.Contains("Name: Group", Text);
+            Assert.Contains("class=\"data-row\"", Text);
             Assert.Contains("Alpha, &quot;One&quot;", Text);
+            Assert.Contains("class=\"group-summary-row\"", Text);
+            Assert.Contains("class=\"total-summary-row\"", Text);
+            Assert.Contains("sum=12.5", Text);
         }
         finally
         {

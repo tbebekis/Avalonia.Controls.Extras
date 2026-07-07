@@ -13,6 +13,48 @@ public class GroupGridHtmlExporter: GroupGridExporter
     {
         return WebUtility.HtmlEncode(Text ?? string.Empty);
     }
+    void AppendCells(StringBuilder Builder, IEnumerable<GroupGridExportCell> Cells, string Tag)
+    {
+        foreach (GroupGridExportCell Cell in Cells)
+            Builder.Append('<').Append(Tag).Append('>')
+                .Append(Html(Cell.Text))
+                .Append("</").Append(Tag).AppendLine(">");
+    }
+    void AppendDataRow(StringBuilder Builder, GroupGridExportRow Row)
+    {
+        Builder.AppendLine("<tr class=\"data-row\">");
+        AppendCells(Builder, Row.Cells, "td");
+        Builder.AppendLine("</tr>");
+    }
+    void AppendGroupRow(StringBuilder Builder, GroupGridExportRow Row, int ColumnCount)
+    {
+        int ColSpan = Math.Max(1, ColumnCount);
+        int Padding = Math.Max(0, Row.Level) * 18;
+        Builder.Append("<tr class=\"group-row\"><td colspan=\"")
+            .Append(ColSpan.ToString(CultureInfo.InvariantCulture))
+            .Append("\" style=\"padding-left:")
+            .Append(Padding.ToString(CultureInfo.InvariantCulture))
+            .Append("px\">")
+            .Append(Html(Row.GroupText))
+            .AppendLine("</td></tr>");
+    }
+    void AppendSummaryRow(StringBuilder Builder, GroupGridExportRow Row)
+    {
+        Builder.AppendLine("<tr class=\"group-summary-row\">");
+        AppendCells(Builder, Row.Cells, "td");
+        Builder.AppendLine("</tr>");
+    }
+    void AppendTotalSummary(StringBuilder Builder, GroupGridExportSnapshot Snapshot)
+    {
+        if (Snapshot.TotalSummaryCells.Count == 0)
+            return;
+
+        Builder.AppendLine("<tfoot>");
+        Builder.AppendLine("<tr class=\"total-summary-row\">");
+        AppendCells(Builder, Snapshot.TotalSummaryCells, "td");
+        Builder.AppendLine("</tr>");
+        Builder.AppendLine("</tfoot>");
+    }
 
     // ● public methods
     /// <inheritdoc />
@@ -32,6 +74,8 @@ public class GroupGridHtmlExporter: GroupGridExporter
         Builder.AppendLine("table{border-collapse:collapse}");
         Builder.AppendLine("th,td{border:1px solid #999;padding:4px 8px;text-align:left}");
         Builder.AppendLine("th{background:#eee}");
+        Builder.AppendLine(".group-row td{background:#f3f3f3;font-weight:bold}");
+        Builder.AppendLine(".group-summary-row td,.total-summary-row td{background:#fafafa;font-weight:bold}");
         Builder.AppendLine("</style>");
         Builder.AppendLine("</head>");
         Builder.AppendLine("<body>");
@@ -43,14 +87,17 @@ public class GroupGridHtmlExporter: GroupGridExporter
         Builder.AppendLine("</tr>");
         Builder.AppendLine("</thead>");
         Builder.AppendLine("<tbody>");
-        foreach (GroupGridExportRow Row in Snapshot.GetDataRows())
+        foreach (GroupGridExportRow Row in Snapshot.Rows)
         {
-            Builder.AppendLine("<tr>");
-            foreach (GroupGridExportCell Cell in Row.Cells)
-                Builder.Append("<td>").Append(Html(Cell.Text)).AppendLine("</td>");
-            Builder.AppendLine("</tr>");
+            if (Row.IsGroup)
+                AppendGroupRow(Builder, Row, Snapshot.Columns.Count);
+            else if (Row.IsGroupSummary)
+                AppendSummaryRow(Builder, Row);
+            else if (Row.IsDataRow)
+                AppendDataRow(Builder, Row);
         }
         Builder.AppendLine("</tbody>");
+        AppendTotalSummary(Builder, Snapshot);
         Builder.AppendLine("</table>");
         Builder.AppendLine("</body>");
         Builder.AppendLine("</html>");
