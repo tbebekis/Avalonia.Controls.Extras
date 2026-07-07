@@ -42,6 +42,13 @@ public class GroupGridEngineTests
 
         return Result;
     }
+    double BodyTop(GroupGridEngine Engine)
+    {
+        return Engine.LayoutMetrics.ToolBarHeight
+               + Engine.LayoutMetrics.GroupPanelHeight
+               + Engine.LayoutMetrics.ColumnHeaderHeight
+               + Engine.LayoutMetrics.FilterRowHeight;
+    }
 
     // ● tests
     /// <summary>
@@ -328,5 +335,135 @@ public class GroupGridEngineTests
 
         Assert.Equal(4, Rows.Count);
         Assert.Equal(1, Engine.CurrentRowIndex);
+    }
+    /// <summary>
+    /// Verifies header, filter, and footer hit testing.
+    /// </summary>
+    [Fact]
+    public void HitTest_WithBands_ReturnsBandAndColumnInformation()
+    {
+        GroupGridEngine Engine = CreateEngine(CreateRows());
+        Engine.SetViewport(new GroupGridViewport(0, 3), Engine.LayoutMetrics.RowHeight * 4);
+        GroupGridColumn CategoryColumn = Column(Engine, nameof(GridTestRow.Category));
+
+        GroupGridHitTestResult HeaderHit = Engine.HitTest(10, Engine.LayoutMetrics.ToolBarHeight + Engine.LayoutMetrics.GroupPanelHeight + 2);
+        GroupGridHitTestResult FilterHit = Engine.HitTest(10, Engine.LayoutMetrics.ToolBarHeight + Engine.LayoutMetrics.GroupPanelHeight + Engine.LayoutMetrics.ColumnHeaderHeight + 2);
+        GroupGridHitTestResult FooterHit = Engine.HitTest(10, BodyTop(Engine) + Engine.LayoutMetrics.RowHeight * Engine.VisibleNodeCount + 2);
+
+        Assert.Equal(GroupGridBand.ColumnHeader, HeaderHit.Band);
+        Assert.Equal(GroupGridHitTestKind.ColumnHeader, HeaderHit.Kind);
+        Assert.Same(CategoryColumn, HeaderHit.Column);
+        Assert.Equal(GroupGridBand.FilterRow, FilterHit.Band);
+        Assert.Equal(GroupGridHitTestKind.FilterCell, FilterHit.Kind);
+        Assert.Same(CategoryColumn, FilterHit.Column);
+        Assert.Equal(GroupGridBand.FooterSummary, FooterHit.Band);
+        Assert.Equal(GroupGridRowKind.TotalSummary, FooterHit.RowKind);
+        Assert.Same(CategoryColumn, FooterHit.Column);
+    }
+    /// <summary>
+    /// Verifies column resize handle hit testing.
+    /// </summary>
+    [Fact]
+    public void HitTest_NearColumnRightEdge_ReturnsColumnResizer()
+    {
+        GroupGridEngine Engine = CreateEngine(CreateRows());
+        GroupGridColumn CategoryColumn = Column(Engine, nameof(GridTestRow.Category));
+
+        GroupGridHitTestResult Hit = Engine.HitTest(CategoryColumn.Width - 1, Engine.LayoutMetrics.ToolBarHeight + Engine.LayoutMetrics.GroupPanelHeight + 2);
+
+        Assert.Equal(GroupGridHitTestKind.ColumnResizer, Hit.Kind);
+        Assert.Same(CategoryColumn, Hit.Column);
+    }
+    /// <summary>
+    /// Verifies body hit testing for visible data rows.
+    /// </summary>
+    [Fact]
+    public void HitTest_WithBodyDataRow_ReturnsDataCell()
+    {
+        GroupGridEngine Engine = CreateEngine(CreateRows());
+        Engine.SetViewport(new GroupGridViewport(1, 2), Engine.LayoutMetrics.RowHeight * 2);
+        GroupGridColumn CategoryColumn = Column(Engine, nameof(GridTestRow.Category));
+
+        GroupGridHitTestResult Hit = Engine.HitTest(10, BodyTop(Engine) + 2);
+
+        Assert.Equal(GroupGridBand.Body, Hit.Band);
+        Assert.Equal(GroupGridHitTestKind.BodyCell, Hit.Kind);
+        Assert.Equal(1, Hit.VisibleNodeIndex);
+        Assert.Equal(1, Hit.RowIndex);
+        Assert.Equal(GroupGridRowKind.DataRow, Hit.RowKind);
+        Assert.Same(CategoryColumn, Hit.Column);
+    }
+    /// <summary>
+    /// Verifies group expander hit testing.
+    /// </summary>
+    [Fact]
+    public void HitTest_WithGroupRowExpander_ReturnsGroupExpander()
+    {
+        GroupGridEngine Engine = CreateEngine(CreateRows());
+        GroupGridColumn CategoryColumn = Column(Engine, nameof(GridTestRow.Category));
+        Assert.True(Engine.GroupColumn(CategoryColumn));
+        Engine.SetViewport(new GroupGridViewport(0, 2), Engine.LayoutMetrics.RowHeight * 3);
+
+        GroupGridHitTestResult Hit = Engine.HitTest(2, BodyTop(Engine) + 2);
+
+        Assert.Equal(GroupGridBand.Body, Hit.Band);
+        Assert.Equal(GroupGridHitTestKind.GroupExpander, Hit.Kind);
+        Assert.Equal(GroupGridRowKind.Group, Hit.RowKind);
+        Assert.Equal(0, Hit.VisibleNodeIndex);
+    }
+    /// <summary>
+    /// Verifies group summary calculation.
+    /// </summary>
+    [Fact]
+    public void GetGroupSummary_WithGroupedRows_ReturnsGroupAggregate()
+    {
+        GroupGridEngine Engine = CreateEngine(CreateRows());
+        GroupGridColumn CategoryColumn = Column(Engine, nameof(GridTestRow.Category));
+        GroupGridColumn QuantityColumn = Column(Engine, nameof(GridTestRow.Quantity));
+        QuantityColumn.GroupSummary = GroupGridAggregateKind.Sum;
+
+        Assert.True(Engine.GroupColumn(CategoryColumn));
+
+        GroupGridSummaryValue Summary = Engine.GetGroupSummary(0, QuantityColumn);
+
+        Assert.Equal(GroupGridAggregateKind.Sum, Summary.AggregateKind);
+        Assert.Equal(7m, Convert.ToDecimal(Summary.Value));
+        Assert.Equal("Category: A", Engine.GetGroupHeaderText(0));
+    }
+    /// <summary>
+    /// Verifies that collapsing a group hides child rows and coerces current cell state.
+    /// </summary>
+    [Fact]
+    public void SetGroupExpanded_WhenCollapsed_HidesChildrenAndClearsCurrentCell()
+    {
+        GroupGridEngine Engine = CreateEngine(CreateRows());
+        GroupGridColumn CategoryColumn = Column(Engine, nameof(GridTestRow.Category));
+        GroupGridColumn NameColumn = Column(Engine, nameof(GridTestRow.Name));
+        Assert.True(Engine.GroupColumn(CategoryColumn));
+        Assert.True(Engine.SetCurrentCell(0, NameColumn));
+
+        Assert.True(Engine.SetGroupExpanded(0, false));
+
+        Assert.False(Engine.GetVisibleRowInfo(0).IsExpanded);
+        Assert.DoesNotContain(0, VisibleDataRowIndexes(Engine));
+        Assert.DoesNotContain(1, VisibleDataRowIndexes(Engine));
+        Assert.Contains(2, VisibleDataRowIndexes(Engine));
+        Assert.False(Engine.HasCurrentCell);
+    }
+    /// <summary>
+    /// Verifies that expanding a collapsed group restores child rows.
+    /// </summary>
+    [Fact]
+    public void ToggleGroupExpanded_WithCollapsedGroup_RestoresChildren()
+    {
+        GroupGridEngine Engine = CreateEngine(CreateRows());
+        GroupGridColumn CategoryColumn = Column(Engine, nameof(GridTestRow.Category));
+        Assert.True(Engine.GroupColumn(CategoryColumn));
+        Assert.True(Engine.SetGroupExpanded(0, false));
+
+        Assert.True(Engine.ToggleGroupExpanded(0));
+
+        Assert.True(Engine.GetVisibleRowInfo(0).IsExpanded);
+        Assert.Equal(new[] { 0, 1, 2, 3 }, VisibleDataRowIndexes(Engine));
     }
 }
