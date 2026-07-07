@@ -1,4 +1,7 @@
-﻿using Avalonia;
+// Copyright (c) 2026 Theodoros Bebekis
+// Licensed under the MIT License.
+
+using Avalonia;
 using System;
 
 namespace Demo00.GroupGrid;

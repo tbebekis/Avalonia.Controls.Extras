@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Theodoros Bebekis
+// Licensed under the MIT License.
+
 namespace Avalonia.Controls.Extras.Grid.Tests;
 
 /// <summary>

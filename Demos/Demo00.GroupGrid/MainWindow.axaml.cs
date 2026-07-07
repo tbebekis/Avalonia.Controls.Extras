@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Theodoros Bebekis
+// Licensed under the MIT License.
+
 namespace Demo00.GroupGrid;
 
 public partial class MainWindow : Window

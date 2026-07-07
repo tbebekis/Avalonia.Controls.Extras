@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Theodoros Bebekis
+// Licensed under the MIT License.
+
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
