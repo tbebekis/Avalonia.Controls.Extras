@@ -7,6 +7,7 @@ public partial class MainWindow : Window
 {
     // ● private fields
     private bool fIsWindowInitialized;
+    private bool fAreNotesReadOnly;
 
     // ● private
     /// <summary>
@@ -16,12 +17,14 @@ public partial class MainWindow : Window
     {
         SourceComboBox.SelectedIndex = 0;
         ApplySelectedSource();
+        SetStatus("Ready.");
     }
     /// <summary>
     /// Adds the demo columns.
     /// </summary>
     private void AddColumns()
     {
+        Grid.Columns.Add(new GroupGridNumberColumn { Name = "Id", Header = "Id", Width = 70, ValueType = typeof(int), IsReadOnly = true });
         Grid.Columns.Add(new GroupGridTextColumn { Name = "Source", Header = "Source", Width = 110 });
         Grid.Columns.Add(new GroupGridLookupColumn { Name = "CustomerId", Header = "Customer", Width = 170, ValueType = typeof(int), LookupItemsSource = CreateCustomers(), DisplayMember = "Name", ValueMember = "Id" });
         Grid.Columns.Add(new GroupGridTextColumn { Name = "Region", Header = "Region", Width = 120 });
@@ -29,7 +32,7 @@ public partial class MainWindow : Window
         Grid.Columns.Add(new GroupGridNumberColumn { Name = "Quantity", Header = "Qty", Width = 80, ValueType = typeof(int), GroupSummary = GroupGridAggregateKind.Sum, TotalSummary = GroupGridAggregateKind.Sum });
         Grid.Columns.Add(new GroupGridNumberColumn { Name = "Amount", Header = "Amount", Width = 120, ValueType = typeof(decimal), DisplayFormat = "N2", GroupSummary = GroupGridAggregateKind.Sum, TotalSummary = GroupGridAggregateKind.Sum });
         Grid.Columns.Add(new GroupGridCheckBoxColumn { Name = "IsPaid", Header = "Paid", Width = 80 });
-        Grid.Columns.Add(new GroupGridTextColumn { Name = "Notes", Header = "Notes", Width = 900 });
+        Grid.Columns.Add(new GroupGridTextColumn { Name = "Notes", Header = "Notes", Width = 900, IsReadOnly = fAreNotesReadOnly });
     }
     /// <summary>
     /// Applies the selected demo data source to the grid.
@@ -40,11 +43,12 @@ public partial class MainWindow : Window
         Grid.Columns.Clear();
         AddColumns();
         Grid.ItemsSource = CreateSelectedItemsSource();
-        Grid.GroupColumn(Grid.Columns[2]);
+        GroupByRegionCustomer();
         Grid.SetFirstVisibleNodeIndex(0);
         Grid.SetHorizontalOffset(0);
-        Grid.SetCurrentCell(0, Grid.Columns[1]);
-        Grid.SelectCurrentCell();
+        SelectFirstDataRow();
+        Dispatcher.UIThread.Post(SelectFirstDataRow);
+        SetStatus($"Loaded {SourceComboBox.SelectionBoxItem}.");
     }
     /// <summary>
     /// Creates the selected demo item source.
@@ -65,6 +69,7 @@ public partial class MainWindow : Window
     /// <summary>
     /// Creates the demo rows.
     /// </summary>
+    /// <param name="Source">The source display name.</param>
     /// <returns>The demo rows.</returns>
     private List<SalesRow> CreateRows(string Source)
     {
@@ -77,6 +82,7 @@ public partial class MainWindow : Window
             int Quantity = 1 + (Index % 9);
             Result.Add(new SalesRow
             {
+                Id = Index + 1,
                 Source = Source,
                 CustomerId = 1 + (Index % 8),
                 Region = Regions[Index % Regions.Length],
@@ -93,10 +99,12 @@ public partial class MainWindow : Window
     /// <summary>
     /// Creates the demo rows as a data table.
     /// </summary>
+    /// <param name="Source">The source display name.</param>
     /// <returns>The demo data table.</returns>
     private DataTable CreateTable(string Source)
     {
         DataTable Result = new("Sales");
+        Result.Columns.Add("Id", typeof(int));
         Result.Columns.Add("Source", typeof(string));
         Result.Columns.Add("CustomerId", typeof(int));
         Result.Columns.Add("Region", typeof(string));
@@ -107,7 +115,7 @@ public partial class MainWindow : Window
         Result.Columns.Add("Notes", typeof(string));
 
         foreach (SalesRow Row in CreateRows(Source))
-            Result.Rows.Add(Row.Source, Row.CustomerId, Row.Region, Row.OrderDate, Row.Quantity, Row.Amount, Row.IsPaid, Row.Notes);
+            Result.Rows.Add(Row.Id, Row.Source, Row.CustomerId, Row.Region, Row.OrderDate, Row.Quantity, Row.Amount, Row.IsPaid, Row.Notes);
 
         return Result;
     }
@@ -154,6 +162,77 @@ public partial class MainWindow : Window
         };
     }
     /// <summary>
+    /// Returns a demo column by name.
+    /// </summary>
+    /// <param name="Name">The column name.</param>
+    /// <returns>The column, or null when not found.</returns>
+    private GroupGridColumn GetColumn(string Name)
+    {
+        return Grid.GetAllColumns().FirstOrDefault(Column => string.Equals(Column.Name, Name, StringComparison.OrdinalIgnoreCase));
+    }
+    /// <summary>
+    /// Removes all grouped columns.
+    /// </summary>
+    private void ClearGroups()
+    {
+        foreach (GroupGridColumn Column in Grid.GetGroupedColumns().ToList())
+            Grid.UngroupColumn(Column);
+    }
+    /// <summary>
+    /// Groups the demo grid by region and customer.
+    /// </summary>
+    private void GroupByRegionCustomer()
+    {
+        ClearGroups();
+        Grid.GroupColumn(GetColumn("Region"));
+        Grid.GroupColumn(GetColumn("CustomerId"));
+    }
+    /// <summary>
+    /// Selects the first visible data row in the current projection.
+    /// </summary>
+    private void SelectFirstDataRow()
+    {
+        GroupGridColumn Column = GetColumn("CustomerId");
+        if (Column == null)
+            return;
+
+        for (int Index = 0; Index < Grid.VisibleNodeCount; Index++)
+        {
+            GroupGridRowInfo RowInfo = Grid.Engine.GetVisibleRowInfo(Index);
+            if (!RowInfo.IsDataRow)
+                continue;
+
+            Grid.ScrollToRow(RowInfo.RowIndex);
+            Grid.SetCurrentCell(RowInfo.RowIndex, Column);
+            Grid.SelectCurrentCell();
+            return;
+        }
+    }
+    /// <summary>
+    /// Returns the full demo layout file path.
+    /// </summary>
+    /// <returns>The full demo layout file path.</returns>
+    private string GetLayoutFilePath()
+    {
+        return Path.Combine(GetDemoFolderPath(), "group-grid-layout.json");
+    }
+    /// <summary>
+    /// Returns the demo output folder path.
+    /// </summary>
+    /// <returns>The demo output folder path.</returns>
+    private string GetDemoFolderPath()
+    {
+        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Avalonia.Controls.Extras", "Demo00.GroupGrid");
+    }
+    /// <summary>
+    /// Sets the status text.
+    /// </summary>
+    /// <param name="Text">The status text.</param>
+    private void SetStatus(string Text)
+    {
+        StatusTextBlock.Text = Text ?? string.Empty;
+    }
+    /// <summary>
     /// Handles data source selection changes.
     /// </summary>
     /// <param name="Sender">The event sender.</param>
@@ -166,17 +245,169 @@ public partial class MainWindow : Window
         ApplySelectedSource();
     }
     /// <summary>
+    /// Groups by region and customer.
+    /// </summary>
+    /// <param name="Sender">The event sender.</param>
+    /// <param name="Args">The event arguments.</param>
+    private void GroupRegionCustomerButton_Click(object Sender, RoutedEventArgs Args)
+    {
+        GroupByRegionCustomer();
+        SetStatus("Grouped by Region and Customer.");
+    }
+    /// <summary>
+    /// Clears grid grouping.
+    /// </summary>
+    /// <param name="Sender">The event sender.</param>
+    /// <param name="Args">The event arguments.</param>
+    private void ClearGroupsButton_Click(object Sender, RoutedEventArgs Args)
+    {
+        ClearGroups();
+        SetStatus("Grouping cleared.");
+    }
+    /// <summary>
+    /// Applies a quantity filter.
+    /// </summary>
+    /// <param name="Sender">The event sender.</param>
+    /// <param name="Args">The event arguments.</param>
+    private void FilterQuantityButton_Click(object Sender, RoutedEventArgs Args)
+    {
+        Grid.SetColumnFilter(GetColumn("Quantity"), ">=5");
+        SetStatus("Quantity filter applied.");
+    }
+    /// <summary>
+    /// Clears all filters.
+    /// </summary>
+    /// <param name="Sender">The event sender.</param>
+    /// <param name="Args">The event arguments.</param>
+    private void ClearFiltersButton_Click(object Sender, RoutedEventArgs Args)
+    {
+        Grid.ClearFilters();
+        SetStatus("Filters cleared.");
+    }
+    /// <summary>
+    /// Toggles amount sorting.
+    /// </summary>
+    /// <param name="Sender">The event sender.</param>
+    /// <param name="Args">The event arguments.</param>
+    private void SortAmountButton_Click(object Sender, RoutedEventArgs Args)
+    {
+        Grid.ToggleSort(GetColumn("Amount"));
+        SetStatus("Amount sort toggled.");
+    }
+    /// <summary>
+    /// Toggles id column visibility.
+    /// </summary>
+    /// <param name="Sender">The event sender.</param>
+    /// <param name="Args">The event arguments.</param>
+    private void ToggleIdColumnsButton_Click(object Sender, RoutedEventArgs Args)
+    {
+        Grid.AreIdColumnsVisible = !Grid.AreIdColumnsVisible;
+        SetStatus(Grid.AreIdColumnsVisible ? "Id columns shown." : "Id columns hidden.");
+    }
+    /// <summary>
+    /// Hides the source column.
+    /// </summary>
+    /// <param name="Sender">The event sender.</param>
+    /// <param name="Args">The event arguments.</param>
+    private void HideSourceButton_Click(object Sender, RoutedEventArgs Args)
+    {
+        Grid.SetColumnVisible("Source", false);
+        SetStatus("Source column hidden.");
+    }
+    /// <summary>
+    /// Shows the source column.
+    /// </summary>
+    /// <param name="Sender">The event sender.</param>
+    /// <param name="Args">The event arguments.</param>
+    private void ShowSourceButton_Click(object Sender, RoutedEventArgs Args)
+    {
+        Grid.SetColumnVisible("Source", true);
+        SetStatus("Source column shown.");
+    }
+    /// <summary>
+    /// Makes notes read-only.
+    /// </summary>
+    /// <param name="Sender">The event sender.</param>
+    /// <param name="Args">The event arguments.</param>
+    private void NotesReadOnlyButton_Click(object Sender, RoutedEventArgs Args)
+    {
+        fAreNotesReadOnly = true;
+        Grid.SetColumnReadOnly("Notes", true);
+        SetStatus("Notes is read-only.");
+    }
+    /// <summary>
+    /// Makes notes editable.
+    /// </summary>
+    /// <param name="Sender">The event sender.</param>
+    /// <param name="Args">The event arguments.</param>
+    private void NotesEditableButton_Click(object Sender, RoutedEventArgs Args)
+    {
+        fAreNotesReadOnly = false;
+        Grid.SetColumnReadOnly("Notes", false);
+        SetStatus("Notes is editable.");
+    }
+    /// <summary>
+    /// Saves the current layout.
+    /// </summary>
+    /// <param name="Sender">The event sender.</param>
+    /// <param name="Args">The event arguments.</param>
+    private void SaveLayoutButton_Click(object Sender, RoutedEventArgs Args)
+    {
+        string FilePath = GetLayoutFilePath();
+        Grid.SaveSettings(FilePath, "Demo00.GroupGrid");
+        SetStatus($"Layout saved to {FilePath}.");
+    }
+    /// <summary>
+    /// Loads the saved layout.
+    /// </summary>
+    /// <param name="Sender">The event sender.</param>
+    /// <param name="Args">The event arguments.</param>
+    private void LoadLayoutButton_Click(object Sender, RoutedEventArgs Args)
+    {
+        string FilePath = GetLayoutFilePath();
+        bool Loaded = Grid.LoadSettings(FilePath);
+        SetStatus(Loaded ? $"Layout loaded from {FilePath}." : "No saved layout found.");
+    }
+    /// <summary>
+    /// Exports all registered formats.
+    /// </summary>
+    /// <param name="Sender">The event sender.</param>
+    /// <param name="Args">The event arguments.</param>
+    private void ExportAllButton_Click(object Sender, RoutedEventArgs Args)
+    {
+        string FolderPath = GetDemoFolderPath();
+        Directory.CreateDirectory(FolderPath);
+        foreach (GroupGridExporter Exporter in GroupGridExporters.CreateExporters())
+        {
+            string FilePath = Path.Combine(FolderPath, $"group-grid-demo.{Exporter.DefaultExtension}");
+            Grid.SaveExport(Exporter, FilePath);
+        }
+        SetStatus($"Exports saved to {FolderPath}.");
+    }
+    /// <summary>
+    /// Resets the demo grid.
+    /// </summary>
+    /// <param name="Sender">The event sender.</param>
+    /// <param name="Args">The event arguments.</param>
+    private void ResetButton_Click(object Sender, RoutedEventArgs Args)
+    {
+        fAreNotesReadOnly = false;
+        Grid.AreIdColumnsVisible = true;
+        ApplySelectedSource();
+    }
+    /// <summary>
     /// Clears the grid item source.
     /// </summary>
     /// <param name="Sender">The event sender.</param>
     /// <param name="Args">The event arguments.</param>
-    private void ClearButton_Click(object Sender, Avalonia.Interactivity.RoutedEventArgs Args)
+    private void ClearButton_Click(object Sender, RoutedEventArgs Args)
     {
         Grid.ItemsSource = null;
         Grid.ClearCurrentCell();
         Grid.ClearSelection();
         Grid.SetFirstVisibleNodeIndex(0);
         Grid.SetHorizontalOffset(0);
+        SetStatus("Grid cleared.");
     }
 
     // ● protected
@@ -193,9 +424,7 @@ public partial class MainWindow : Window
 
         WindowInitialize();
         fIsWindowInitialized = true;
-        //LogBox.AppendLine("Application Started.");
     }
-
 
     // ● constructor
     /// <summary>
@@ -221,6 +450,10 @@ public class SalesRow
     }
 
     // ● properties
+    /// <summary>
+    /// Gets or sets the row id.
+    /// </summary>
+    public int Id { get; set; }
     /// <summary>
     /// Gets or sets the demo source name.
     /// </summary>

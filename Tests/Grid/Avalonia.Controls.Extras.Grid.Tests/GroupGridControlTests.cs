@@ -250,6 +250,21 @@ public class GroupGridControlTests
         Assert.False(Column(Grid, nameof(GridTestRow.Quantity)).IsReadOnly);
     }
     /// <summary>
+    /// Verifies row scrolling API uses adapter row indexes and respects the current projection.
+    /// </summary>
+    [Fact]
+    public void ScrollToRow_WithVisibleAndFilteredRows_ReturnsExpectedResult()
+    {
+        GroupGrid Grid = CreateGrid(CreateRows());
+
+        Assert.True(Grid.ScrollToRow(1));
+
+        Grid.SetColumnFilter(Column(Grid, nameof(GridTestRow.Name)), "Alpha");
+
+        Assert.True(Grid.ScrollToRow(0));
+        Assert.False(Grid.ScrollToRow(1));
+    }
+    /// <summary>
     /// Verifies automatic columns and adapter creation for list item sources.
     /// </summary>
     [Fact]

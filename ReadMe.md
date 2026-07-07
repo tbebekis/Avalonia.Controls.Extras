@@ -4,6 +4,12 @@ Reusable Avalonia controls with no dependency on Tripous.
 
 The first control is `GroupGrid`, a general-purpose grid for data-entry and business applications. It is designed as a clean Avalonia control that can later be adapted by external frameworks, but the library itself remains framework-neutral.
 
+## Documentation
+
+- [GroupGrid Concepts](GroupGrid Concepts.md)
+- [Designing a Business Grid](1. Designing a Business Grid.md)
+- [Building a Business Grid Runtime](2. Building a Business Grid runtime.md)
+
 ## GroupGrid Features
 
 Current implemented v1 feature map for `GroupGrid`.

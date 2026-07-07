@@ -2815,6 +2815,8 @@ public class GroupGrid: Control
             else if (fActiveEditor is GroupGridTextInplaceEditor TextEditor)
                 TextEditor.Foreground = TextBrush;
         }
+        if (Args.Property == BoundsProperty)
+            UpdateViewport(Bounds.Size);
     }
 
     // ● pointer overrides
@@ -3083,6 +3085,29 @@ public class GroupGrid: Control
     public bool SetHorizontalOffset(double HorizontalOffset)
     {
         return SetHorizontalOffsetCore(HorizontalOffset);
+    }
+    /// <summary>
+    /// Scrolls an adapter row into the virtual viewport.
+    /// </summary>
+    /// <param name="RowIndex">The adapter row index.</param>
+    /// <returns>True if the row exists in the current projection and scrolling succeeded or was not needed; otherwise, false.</returns>
+    public bool ScrollToRow(int RowIndex)
+    {
+        int VisibleNodeIndex = fEngine.IndexOfVisibleRow(RowIndex);
+        if (VisibleNodeIndex < 0)
+            return false;
+
+        if (fEngine.Viewport.IsEmpty)
+        {
+            fFirstVisibleNodeIndex = Math.Clamp(VisibleNodeIndex, 0, Math.Max(0, fEngine.VisibleNodeCount - 1));
+            InvalidateVisual();
+            return true;
+        }
+
+        if (VisibleNodeIndex >= fEngine.Viewport.FirstVisibleNodeIndex && VisibleNodeIndex <= fEngine.Viewport.LastVisibleNodeIndex)
+            return true;
+
+        return SetFirstVisibleNodeIndexCore(VisibleNodeIndex);
     }
     /// <summary>
     /// Scrolls the current cell into the virtual viewport.
