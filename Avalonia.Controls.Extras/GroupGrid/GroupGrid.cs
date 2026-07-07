@@ -115,6 +115,11 @@ public class GroupGrid: Control
     const string EditToolButtonName = "Edit";
 
     // ● core state
+    static readonly JsonSerializerOptions fSettingsJsonOptions = new()
+    {
+        WriteIndented = true,
+        Converters = { new JsonStringEnumConverter() },
+    };
     readonly ObservableCollection<GroupGridToolButton> fToolButtons = new();
     GroupGridEngine fEngine;
     object fItemsSource;
@@ -975,6 +980,15 @@ public class GroupGrid: Control
         IGroupGridDataAdapter Adapter = CreateDataAdapter(Value);
         fOwnedDataAdapter = Adapter as IDisposable;
         DataAdapter = Adapter;
+    }
+
+    // ● settings file helpers
+    void ValidateSettingsFilePath(string FilePath)
+    {
+        if (string.IsNullOrWhiteSpace(FilePath))
+            throw new ArgumentException("A settings file path is required.", nameof(FilePath));
+        if (!Path.IsPathFullyQualified(FilePath))
+            throw new ArgumentException("The settings file path must be a full file path.", nameof(FilePath));
     }
 
     // ● cell state helpers
@@ -3063,6 +3077,16 @@ public class GroupGrid: Control
         GroupGridSettings Result = new()
         {
             Name = string.IsNullOrWhiteSpace(Name) ? "Default" : Name,
+            SortColumnName = fEngine.SortColumn == null ? string.Empty : fEngine.SortColumn.Name,
+            SortDirection = fEngine.SortDirection,
+            IsToolBarVisible = IsToolBarVisible,
+            IsGroupPanelVisible = IsGroupPanelVisible,
+            IsColumnHeadersVisible = IsColumnHeadersVisible,
+            IsFilterPanelVisible = IsFilterPanelVisible,
+            IsTotalsSummaryVisible = IsTotalsSummaryVisible,
+            IsInsertButtonVisible = IsInsertButtonVisible,
+            IsDeleteButtonVisible = IsDeleteButtonVisible,
+            IsEditButtonVisible = IsEditButtonVisible,
         };
 
         int Index = 0;
@@ -3074,6 +3098,7 @@ public class GroupGrid: Control
                 Header = string.IsNullOrWhiteSpace(Column.Header) ? Column.Name : Column.Header,
                 IsVisible = Column.IsVisible,
                 VisibleIndex = Index++,
+                Width = Math.Max(Column.MinWidth, Column.Width),
                 GroupIndex = IndexOfGroupColumn(Column),
                 FilterText = fEngine.GetColumnFilter(Column),
                 GroupSummary = Column.GroupSummary,
@@ -3082,6 +3107,40 @@ public class GroupGrid: Control
         }
 
         return Result;
+    }
+    /// <summary>
+    /// Saves the current grid settings to a JSON file.
+    /// </summary>
+    /// <param name="FilePath">The full file path where settings are saved.</param>
+    /// <param name="Name">The settings name.</param>
+    public void SaveSettings(string FilePath, string Name = "Default")
+    {
+        ValidateSettingsFilePath(FilePath);
+        string DirectoryPath = Path.GetDirectoryName(FilePath);
+        if (!string.IsNullOrWhiteSpace(DirectoryPath))
+            Directory.CreateDirectory(DirectoryPath);
+
+        string Json = JsonSerializer.Serialize(CreateSettings(Name), fSettingsJsonOptions);
+        File.WriteAllText(FilePath, Json);
+    }
+    /// <summary>
+    /// Loads grid settings from a JSON file and applies them to the current grid layout.
+    /// </summary>
+    /// <param name="FilePath">The full file path where settings are loaded from.</param>
+    /// <returns>True if settings were loaded and applied; otherwise, false.</returns>
+    public bool LoadSettings(string FilePath)
+    {
+        ValidateSettingsFilePath(FilePath);
+        if (!File.Exists(FilePath))
+            return false;
+
+        string Json = File.ReadAllText(FilePath);
+        GroupGridSettings Settings = JsonSerializer.Deserialize<GroupGridSettings>(Json, fSettingsJsonOptions);
+        if (Settings == null)
+            return false;
+
+        ApplySettings(Settings);
+        return true;
     }
     /// <summary>
     /// Applies a serializable settings object to the current grid layout.
@@ -3093,6 +3152,15 @@ public class GroupGrid: Control
             return;
 
         CancelCellEdit();
+        IsToolBarVisible = Settings.IsToolBarVisible;
+        IsGroupPanelVisible = Settings.IsGroupPanelVisible;
+        IsColumnHeadersVisible = Settings.IsColumnHeadersVisible;
+        IsFilterPanelVisible = Settings.IsFilterPanelVisible;
+        IsTotalsSummaryVisible = Settings.IsTotalsSummaryVisible;
+        IsInsertButtonVisible = Settings.IsInsertButtonVisible;
+        IsDeleteButtonVisible = Settings.IsDeleteButtonVisible;
+        IsEditButtonVisible = Settings.IsEditButtonVisible;
+
         Dictionary<string, GroupGridColumn> ColumnMap = fEngine.Columns.ToDictionary(Column => Column.Name, StringComparer.OrdinalIgnoreCase);
         List<GroupGridColumnSettings> OrderedSettings = Settings.Columns
             .Where(Item => Item != null && ColumnMap.ContainsKey(Item.Name))
@@ -3110,6 +3178,9 @@ public class GroupGrid: Control
         foreach (GroupGridColumnSettings Item in OrderedSettings)
         {
             GroupGridColumn Column = ColumnMap[Item.Name];
+            if (Item.Width > 0)
+                Column.Width = Math.Max(Column.MinWidth, Item.Width);
+
             fEngine.SetColumnVisible(Column, Item.IsVisible);
             if (string.IsNullOrWhiteSpace(Item.FilterText))
                 fEngine.ClearColumnFilter(Column);
@@ -3127,6 +3198,16 @@ public class GroupGrid: Control
             GroupGridColumn Column = ColumnMap[Item.Name];
             if (Item.IsVisible && Column.CanUserGroup)
                 fEngine.GroupColumn(Column);
+        }
+
+        fEngine.ClearSort();
+        if (!string.IsNullOrWhiteSpace(Settings.SortColumnName)
+            && Settings.SortDirection != GroupGridSortDirection.None
+            && ColumnMap.TryGetValue(Settings.SortColumnName, out GroupGridColumn SortColumn))
+        {
+            fEngine.ToggleSort(SortColumn);
+            if (Settings.SortDirection == GroupGridSortDirection.Descending)
+                fEngine.ToggleSort(SortColumn);
         }
 
         fEngine.RebuildProjection();

@@ -118,8 +118,9 @@ Current implemented feature map for `GroupGrid`.
 - Optional column manager context menu item.
 - Default column manager dialog when no `ColumnManagerRequested` handler is attached.
 - `GroupGridColumnManagerDialog` is a separate window that edits a serializable `GroupGridSettings` object.
-- `GroupGridSettings` includes a settings name and per-column order, visibility, grouping, filter, and summary settings.
+- `GroupGridSettings` includes settings name, band visibility, default toolbar button visibility, sorting, and per-column order, width, visibility, grouping, filter, and summary settings.
 - `CreateSettings()` and `ApplySettings()` provide in-memory layout snapshot and restore.
+- `SaveSettings()` and `LoadSettings()` persist layout settings as JSON through a caller-provided full file path.
 - Default column manager tabs cover visible/hidden columns, grouping, filters, and summaries.
 - Vertical and horizontal scroll thumb dragging.
 - Scrollbar track page scrolling.
@@ -208,12 +209,6 @@ Current implemented feature map for `GroupGrid`.
   - Excel/OpenXML
   - clipboard copy
   - printable/report-friendly output
-- Persistent save/load helpers around `GroupGridSettings`.
-- Extend layout settings:
-  - column widths
-  - sorting
-  - band visibility
-  - toolbar/default button visibility
 - Column manager follow-ups:
   - column widths
   - sorting

@@ -31,6 +31,10 @@ public class GroupGridColumnSettings
     /// </summary>
     public int VisibleIndex { get; set; }
     /// <summary>
+    /// Gets or sets the column width, or 0 when width is not persisted.
+    /// </summary>
+    public double Width { get; set; }
+    /// <summary>
     /// Gets or sets the group order index, or -1 when the column is not grouped.
     /// </summary>
     public int GroupIndex { get; set; } = -1;
