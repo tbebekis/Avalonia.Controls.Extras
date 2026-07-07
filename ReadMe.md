@@ -6,7 +6,7 @@ The first control is `GroupGrid`, a general-purpose grid for data-entry and busi
 
 ## GroupGrid Features
 
-Current implemented feature map for `GroupGrid`.
+Current implemented v1 feature map for `GroupGrid`.
 
 ### Architecture
 
@@ -121,8 +121,6 @@ Current implemented feature map for `GroupGrid`.
 - `GroupGridSettings` includes settings name, band visibility, default toolbar button visibility, sorting, and per-column order, width, visibility, grouping, filter, and summary settings.
 - `CreateSettings()` and `ApplySettings()` provide in-memory layout snapshot and restore.
 - `SaveSettings()` and `LoadSettings()` persist layout settings as JSON through a caller-provided full file path.
-- Exporter registry with built-in CSV, JSON, and HTML exporters.
-- `CreateExportSnapshot()` and `SaveExport()` expose export data and file export.
 - Default column manager tabs cover visible/hidden columns, grouping, filters, and summaries.
 - Vertical and horizontal scroll thumb dragging.
 - Scrollbar track page scrolling.
@@ -167,6 +165,17 @@ Current implemented feature map for `GroupGrid`.
 - `Escape` cancels filter editing.
 - Column context menu can clear a column filter or all filters.
 
+### Export
+
+- Exporter registry with built-in CSV, JSON, and HTML exporters.
+- Exporters can be registered as instances or factories.
+- `CreateExportSnapshot()` exposes visible columns, projected rows, raw values, display text, group rows, group summaries, and total summaries.
+- `SaveExport()` writes an export through a selected exporter and caller-provided full file path.
+- Column header context menu includes an `Export` submenu generated from the exporter registry.
+- CSV export writes visible data rows with escaped cell text.
+- JSON export writes formatted JSON with column metadata and data row values.
+- HTML export writes a standalone HTML table.
+
 ### Editing
 
 - Edit state tracking.
@@ -203,9 +212,15 @@ Current implemented feature map for `GroupGrid`.
 - Hit testing supports body cells, group expanders, headers, resize handles, group panel, footer summary, and scroll-aware coordinates.
 - Hit testing maps hidden bands correctly when band visibility is disabled.
 
-## GroupGrid Roadmap
+## GroupGrid V1 Status
 
-- V2 typed filter descriptors beyond the current text-based column filters.
-- Optional multi-column sorting.
-- Tests for engine projection, filtering, sorting, summaries, editing, adapters, and settings.
-- Demo scenarios for list sources, `DataTable` / `DataView`, grouping, filters, summaries, row commands, editors, and settings.
+`GroupGrid` v1 functionality is complete. The next work is tests and demos.
+
+## Next Work
+
+- Tests for engine projection, filtering, sorting, summaries, editing, adapters, settings, and exporters.
+- Demo scenarios for list sources, `DataTable` / `DataView`, grouping, filters, summaries, row commands, editors, settings, and export.
+
+## V2 Roadmap
+
+- Typed filter descriptors beyond the current text-based column filters.

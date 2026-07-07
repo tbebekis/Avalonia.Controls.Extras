@@ -6,6 +6,12 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Demos", "Demos", "{D04810A1
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Demo00.GroupGrid", "Demos\Demo00.GroupGrid\Demo00.GroupGrid.csproj", "{BB5E8FA0-C3D1-474F-AB55-1EDBA0F6AA8B}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{3C37C09E-A0ED-484F-8B2E-CC4321F672C8}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Grid", "Grid", "{62DC2404-44B8-4B7C-98B4-1BC7B90A962B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalonia.Controls.Extras.Grid.Tests", "Tests\Grid\Avalonia.Controls.Extras.Grid.Tests\Avalonia.Controls.Extras.Grid.Tests.csproj", "{B2DCFCE9-2178-4D2D-8B4B-CFCB1F2B8826}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -20,8 +26,14 @@ Global
 		{BB5E8FA0-C3D1-474F-AB55-1EDBA0F6AA8B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BB5E8FA0-C3D1-474F-AB55-1EDBA0F6AA8B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BB5E8FA0-C3D1-474F-AB55-1EDBA0F6AA8B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B2DCFCE9-2178-4D2D-8B4B-CFCB1F2B8826}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B2DCFCE9-2178-4D2D-8B4B-CFCB1F2B8826}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B2DCFCE9-2178-4D2D-8B4B-CFCB1F2B8826}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B2DCFCE9-2178-4D2D-8B4B-CFCB1F2B8826}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{BB5E8FA0-C3D1-474F-AB55-1EDBA0F6AA8B} = {D04810A1-3D57-4602-B942-4B0456F8C559}
+		{62DC2404-44B8-4B7C-98B4-1BC7B90A962B} = {3C37C09E-A0ED-484F-8B2E-CC4321F672C8}
+		{B2DCFCE9-2178-4D2D-8B4B-CFCB1F2B8826} = {62DC2404-44B8-4B7C-98B4-1BC7B90A962B}
 	EndGlobalSection
 EndGlobal
