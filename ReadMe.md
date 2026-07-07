@@ -6,7 +6,7 @@ The first control is `GroupGrid`, a general-purpose grid for data-entry and busi
 
 ## GroupGrid Features
 
-Current implemented or planned feature map for `GroupGrid`.
+Current implemented feature map for `GroupGrid`.
 
 ### Architecture
 
@@ -14,10 +14,15 @@ Current implemented or planned feature map for `GroupGrid`.
 - Separate non-visual `GroupGridEngine`.
 - Framework-neutral core, with no Tripous dependency.
 - Adapter-based data access through `IGroupGridDataAdapter`.
+- Adapter notifications for reset, row add/remove/move/change, and cell change.
 - Convenience `ItemsSource` support for POCO/list sources.
 - `ItemsSource` support for `DataTable` and `DataView`; assigning a `DataTable` uses its `DefaultView`.
 - Optional auto-generation of columns from public POCO properties.
 - Optional auto-generation of columns from `DataView` data columns.
+- Built-in list adapter for `IList<T>` sources.
+- Built-in `DataView` adapter.
+- List adapter listens to `INotifyCollectionChanged` and row-level `INotifyPropertyChanged` when available.
+- `DataView` adapter listens to `ListChanged`.
 
 ### Columns
 
@@ -36,6 +41,7 @@ Current implemented or planned feature map for `GroupGrid`.
 - Lookup columns support separate `DisplayMember` and `ValueMember`.
 - User flags for resize, reorder, grouping, and hiding.
 - Query methods for all, visible ordered, hidden, and grouped columns.
+- Per-column group and total summary aggregate settings.
 
 ### Layout
 
@@ -48,6 +54,26 @@ Current implemented or planned feature map for `GroupGrid`.
 - Vertical scrollbar.
 - Horizontal scrollbar.
 - Visibility properties for toolbar, group panel, column headers, filter panel, and totals summary bands.
+- Public vertical viewport and horizontal offset setters.
+- Current-cell scroll-into-view support.
+
+### Theming
+
+- Theme-facing Avalonia styled brush properties for:
+  - grid body background
+  - toolbar and toolbar buttons
+  - group panel
+  - column headers
+  - filter row, filtered cells, and active filter cells
+  - group rows and group summaries
+  - selected, current, and editing cells
+  - footer summaries
+  - primary and muted text
+  - scrollbars
+  - column drag ghost
+  - grid lines
+  - current and editing borders
+  - resize and drop guides
 
 ### Grouping
 
@@ -93,6 +119,8 @@ Current implemented or planned feature map for `GroupGrid`.
 - Default column manager dialog when no `ColumnManagerRequested` handler is attached.
 - `GroupGridColumnManagerDialog` is a separate window that edits a serializable `GroupGridSettings` object.
 - `GroupGridSettings` includes a settings name and per-column order, visibility, grouping, filter, and summary settings.
+- `CreateSettings()` and `ApplySettings()` provide in-memory layout snapshot and restore.
+- Default column manager tabs cover visible/hidden columns, grouping, filters, and summaries.
 - Vertical and horizontal scroll thumb dragging.
 - Scrollbar track page scrolling.
 - Checkbox/boolean cell toggle by mouse click and `Space`.
@@ -109,6 +137,8 @@ Current implemented or planned feature map for `GroupGrid`.
 - Custom toolbar buttons can be added to the left group or aligned at the far right.
 - Toolbar buttons support tooltip text.
 - Toolbar API includes add and insert-before/insert-after helpers.
+- Default toolbar button visibility properties are available for insert, delete, and edit.
+- Custom toolbar button clicks raise `ToolButtonClicked`.
 
 ### Sorting And Filtering
 
@@ -151,13 +181,24 @@ Current implemented or planned feature map for `GroupGrid`.
 - Custom in-place editors can be supplied through the grid-level `CreateInplaceEditor` event.
 - Date normalization can be customized through the grid-level `DateNormalize` event.
 - Inline editing uses `Enter` and `Tab` to commit and `Escape` to cancel.
-- Validation and commit events.
+- Engine validation and commit events:
+  - `BeginningEdit`
+  - `CellValidating`
+  - `CellValueCommitting`
+  - `CellValueCommitted`
+  - `EditCanceled`
+- Row operation events:
+  - `InsertingRow`
+  - `RowInserted`
+  - `DeletingRow`
+  - `RowDeleted`
 
 ### Hit Testing
 
 - Hit testing returns band/kind information.
 - Cell hit results include direct `GroupGridColumn` references.
 - Hit testing supports body cells, group expanders, headers, resize handles, group panel, footer summary, and scroll-aware coordinates.
+- Hit testing maps hidden bands correctly when band visibility is disabled.
 
 ## GroupGrid Roadmap
 
@@ -167,12 +208,17 @@ Current implemented or planned feature map for `GroupGrid`.
   - Excel/OpenXML
   - clipboard copy
   - printable/report-friendly output
-- Import or load layout settings.
-- Save/restore user layout:
-  - column order
+- Persistent save/load helpers around `GroupGridSettings`.
+- Extend layout settings:
   - column widths
-  - hidden columns
-  - grouped columns
   - sorting
-  - filtering
-  - summary settings
+  - band visibility
+  - toolbar/default button visibility
+- Column manager follow-ups:
+  - column widths
+  - sorting
+- Typed filter descriptors if text filters are not enough.
+- Optional multi-column sorting.
+- Optional range and multi-selection.
+- Tests for engine projection, filtering, sorting, summaries, editing, adapters, and settings.
+- Demo scenarios for list sources, `DataTable` / `DataView`, grouping, filters, summaries, row commands, editors, and settings.

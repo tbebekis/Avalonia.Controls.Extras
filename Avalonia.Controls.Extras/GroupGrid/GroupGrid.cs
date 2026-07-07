@@ -5,32 +5,109 @@ namespace Avalonia.Controls;
 /// </summary>
 public class GroupGrid: Control
 {
+    // ● public fields
+    /// <summary>
+    /// Defines the <see cref="GridBackgroundBrush"/> property.
+    /// </summary>
+    public static readonly StyledProperty<IBrush> GridBackgroundBrushProperty = AvaloniaProperty.Register<GroupGrid, IBrush>(nameof(GridBackgroundBrush), CreateBrush(255, 255, 255));
+    /// <summary>
+    /// Defines the <see cref="ToolBarBrush"/> property.
+    /// </summary>
+    public static readonly StyledProperty<IBrush> ToolBarBrushProperty = AvaloniaProperty.Register<GroupGrid, IBrush>(nameof(ToolBarBrush), CreateBrush(246, 247, 248));
+    /// <summary>
+    /// Defines the <see cref="ToolButtonBrush"/> property.
+    /// </summary>
+    public static readonly StyledProperty<IBrush> ToolButtonBrushProperty = AvaloniaProperty.Register<GroupGrid, IBrush>(nameof(ToolButtonBrush), CreateBrush(255, 255, 255));
+    /// <summary>
+    /// Defines the <see cref="ToolButtonHoverBrush"/> property.
+    /// </summary>
+    public static readonly StyledProperty<IBrush> ToolButtonHoverBrushProperty = AvaloniaProperty.Register<GroupGrid, IBrush>(nameof(ToolButtonHoverBrush), CreateBrush(235, 241, 248));
+    /// <summary>
+    /// Defines the <see cref="DisabledTextBrush"/> property.
+    /// </summary>
+    public static readonly StyledProperty<IBrush> DisabledTextBrushProperty = AvaloniaProperty.Register<GroupGrid, IBrush>(nameof(DisabledTextBrush), CreateBrush(150, 156, 164));
+    /// <summary>
+    /// Defines the <see cref="GroupPanelBrush"/> property.
+    /// </summary>
+    public static readonly StyledProperty<IBrush> GroupPanelBrushProperty = AvaloniaProperty.Register<GroupGrid, IBrush>(nameof(GroupPanelBrush), CreateBrush(235, 239, 244));
+    /// <summary>
+    /// Defines the <see cref="HeaderBrush"/> property.
+    /// </summary>
+    public static readonly StyledProperty<IBrush> HeaderBrushProperty = AvaloniaProperty.Register<GroupGrid, IBrush>(nameof(HeaderBrush), CreateBrush(241, 243, 245));
+    /// <summary>
+    /// Defines the <see cref="FilterBrush"/> property.
+    /// </summary>
+    public static readonly StyledProperty<IBrush> FilterBrushProperty = AvaloniaProperty.Register<GroupGrid, IBrush>(nameof(FilterBrush), CreateBrush(250, 250, 250));
+    /// <summary>
+    /// Defines the <see cref="FilteredCellBrush"/> property.
+    /// </summary>
+    public static readonly StyledProperty<IBrush> FilteredCellBrushProperty = AvaloniaProperty.Register<GroupGrid, IBrush>(nameof(FilteredCellBrush), CreateBrush(255, 250, 228));
+    /// <summary>
+    /// Defines the <see cref="ActiveFilterBrush"/> property.
+    /// </summary>
+    public static readonly StyledProperty<IBrush> ActiveFilterBrushProperty = AvaloniaProperty.Register<GroupGrid, IBrush>(nameof(ActiveFilterBrush), CreateBrush(255, 246, 211));
+    /// <summary>
+    /// Defines the <see cref="GroupRowBrush"/> property.
+    /// </summary>
+    public static readonly StyledProperty<IBrush> GroupRowBrushProperty = AvaloniaProperty.Register<GroupGrid, IBrush>(nameof(GroupRowBrush), CreateBrush(232, 238, 246));
+    /// <summary>
+    /// Defines the <see cref="GroupSummaryBrush"/> property.
+    /// </summary>
+    public static readonly StyledProperty<IBrush> GroupSummaryBrushProperty = AvaloniaProperty.Register<GroupGrid, IBrush>(nameof(GroupSummaryBrush), CreateBrush(247, 249, 252));
+    /// <summary>
+    /// Defines the <see cref="SelectedBrush"/> property.
+    /// </summary>
+    public static readonly StyledProperty<IBrush> SelectedBrushProperty = AvaloniaProperty.Register<GroupGrid, IBrush>(nameof(SelectedBrush), CreateBrush(218, 236, 255));
+    /// <summary>
+    /// Defines the <see cref="CurrentBrush"/> property.
+    /// </summary>
+    public static readonly StyledProperty<IBrush> CurrentBrushProperty = AvaloniaProperty.Register<GroupGrid, IBrush>(nameof(CurrentBrush), CreateBrush(255, 247, 213));
+    /// <summary>
+    /// Defines the <see cref="EditingBrush"/> property.
+    /// </summary>
+    public static readonly StyledProperty<IBrush> EditingBrushProperty = AvaloniaProperty.Register<GroupGrid, IBrush>(nameof(EditingBrush), CreateBrush(255, 238, 204));
+    /// <summary>
+    /// Defines the <see cref="FooterBrush"/> property.
+    /// </summary>
+    public static readonly StyledProperty<IBrush> FooterBrushProperty = AvaloniaProperty.Register<GroupGrid, IBrush>(nameof(FooterBrush), CreateBrush(238, 240, 242));
+    /// <summary>
+    /// Defines the <see cref="TextBrush"/> property.
+    /// </summary>
+    public static readonly StyledProperty<IBrush> TextBrushProperty = AvaloniaProperty.Register<GroupGrid, IBrush>(nameof(TextBrush), CreateBrush(32, 37, 42));
+    /// <summary>
+    /// Defines the <see cref="MutedTextBrush"/> property.
+    /// </summary>
+    public static readonly StyledProperty<IBrush> MutedTextBrushProperty = AvaloniaProperty.Register<GroupGrid, IBrush>(nameof(MutedTextBrush), CreateBrush(84, 91, 99));
+    /// <summary>
+    /// Defines the <see cref="ScrollBarTrackBrush"/> property.
+    /// </summary>
+    public static readonly StyledProperty<IBrush> ScrollBarTrackBrushProperty = AvaloniaProperty.Register<GroupGrid, IBrush>(nameof(ScrollBarTrackBrush), CreateBrush(244, 246, 248));
+    /// <summary>
+    /// Defines the <see cref="ScrollBarThumbBrush"/> property.
+    /// </summary>
+    public static readonly StyledProperty<IBrush> ScrollBarThumbBrushProperty = AvaloniaProperty.Register<GroupGrid, IBrush>(nameof(ScrollBarThumbBrush), CreateBrush(188, 196, 205));
+    /// <summary>
+    /// Defines the <see cref="ColumnDragBrush"/> property.
+    /// </summary>
+    public static readonly StyledProperty<IBrush> ColumnDragBrushProperty = AvaloniaProperty.Register<GroupGrid, IBrush>(nameof(ColumnDragBrush), CreateBrush(220, 250, 252, 255));
+    /// <summary>
+    /// Defines the <see cref="GridLineBrush"/> property.
+    /// </summary>
+    public static readonly StyledProperty<IBrush> GridLineBrushProperty = AvaloniaProperty.Register<GroupGrid, IBrush>(nameof(GridLineBrush), CreateBrush(211, 216, 222));
+    /// <summary>
+    /// Defines the <see cref="CurrentBorderBrush"/> property.
+    /// </summary>
+    public static readonly StyledProperty<IBrush> CurrentBorderBrushProperty = AvaloniaProperty.Register<GroupGrid, IBrush>(nameof(CurrentBorderBrush), CreateBrush(64, 122, 190));
+    /// <summary>
+    /// Defines the <see cref="EditingBorderBrush"/> property.
+    /// </summary>
+    public static readonly StyledProperty<IBrush> EditingBorderBrushProperty = AvaloniaProperty.Register<GroupGrid, IBrush>(nameof(EditingBorderBrush), CreateBrush(194, 105, 0));
+    /// <summary>
+    /// Defines the <see cref="ResizeGuideBrush"/> property.
+    /// </summary>
+    public static readonly StyledProperty<IBrush> ResizeGuideBrushProperty = AvaloniaProperty.Register<GroupGrid, IBrush>(nameof(ResizeGuideBrush), CreateBrush(80, 120, 170));
+
     // ● private fields
-    static readonly IBrush fBackgroundBrush = new SolidColorBrush(Color.FromRgb(255, 255, 255));
-    static readonly IBrush fToolBarBrush = new SolidColorBrush(Color.FromRgb(246, 247, 248));
-    static readonly IBrush fToolButtonBrush = new SolidColorBrush(Color.FromRgb(255, 255, 255));
-    static readonly IBrush fToolButtonHoverBrush = new SolidColorBrush(Color.FromRgb(235, 241, 248));
-    static readonly IBrush fDisabledTextBrush = new SolidColorBrush(Color.FromRgb(150, 156, 164));
-    static readonly IBrush fGroupPanelBrush = new SolidColorBrush(Color.FromRgb(235, 239, 244));
-    static readonly IBrush fHeaderBrush = new SolidColorBrush(Color.FromRgb(241, 243, 245));
-    static readonly IBrush fFilterBrush = new SolidColorBrush(Color.FromRgb(250, 250, 250));
-    static readonly IBrush fFilteredCellBrush = new SolidColorBrush(Color.FromRgb(255, 250, 228));
-    static readonly IBrush fActiveFilterBrush = new SolidColorBrush(Color.FromRgb(255, 246, 211));
-    static readonly IBrush fGroupRowBrush = new SolidColorBrush(Color.FromRgb(232, 238, 246));
-    static readonly IBrush fGroupSummaryBrush = new SolidColorBrush(Color.FromRgb(247, 249, 252));
-    static readonly IBrush fSelectedBrush = new SolidColorBrush(Color.FromRgb(218, 236, 255));
-    static readonly IBrush fCurrentBrush = new SolidColorBrush(Color.FromRgb(255, 247, 213));
-    static readonly IBrush fEditingBrush = new SolidColorBrush(Color.FromRgb(255, 238, 204));
-    static readonly IBrush fFooterBrush = new SolidColorBrush(Color.FromRgb(238, 240, 242));
-    static readonly IBrush fTextBrush = new SolidColorBrush(Color.FromRgb(32, 37, 42));
-    static readonly IBrush fMutedTextBrush = new SolidColorBrush(Color.FromRgb(84, 91, 99));
-    static readonly IBrush fScrollBarTrackBrush = new SolidColorBrush(Color.FromRgb(244, 246, 248));
-    static readonly IBrush fScrollBarThumbBrush = new SolidColorBrush(Color.FromRgb(188, 196, 205));
-    static readonly IBrush fColumnDragBrush = new SolidColorBrush(Color.FromArgb(220, 250, 252, 255));
-    static readonly Pen fLinePen = new(new SolidColorBrush(Color.FromRgb(211, 216, 222)), 1);
-    static readonly Pen fCurrentPen = new(new SolidColorBrush(Color.FromRgb(64, 122, 190)), 1);
-    static readonly Pen fEditingPen = new(new SolidColorBrush(Color.FromRgb(194, 105, 0)), 2);
-    static readonly Pen fResizePen = new(new SolidColorBrush(Color.FromRgb(80, 120, 170)), 1);
     const string InsertToolButtonName = "Insert";
     const string DeleteToolButtonName = "Delete";
     const string EditToolButtonName = "Edit";
@@ -80,8 +157,43 @@ public class GroupGrid: Control
     string fCellEditText = string.Empty;
     bool fIsClosingEditor;
     bool fHasHorizontalScrollBar;
+    Pen fLinePen;
+    Pen fCurrentPen;
+    Pen fEditingPen;
+    Pen fResizePen;
 
     // ● private methods
+    static IBrush CreateBrush(byte Red, byte Green, byte Blue)
+    {
+        return new SolidColorBrush(Color.FromRgb(Red, Green, Blue));
+    }
+    static IBrush CreateBrush(byte Alpha, byte Red, byte Green, byte Blue)
+    {
+        return new SolidColorBrush(Color.FromArgb(Alpha, Red, Green, Blue));
+    }
+    Pen CreateLinePen()
+    {
+        return new Pen(GridLineBrush, 1);
+    }
+    Pen CreateCurrentPen()
+    {
+        return new Pen(CurrentBorderBrush, 1);
+    }
+    Pen CreateEditingPen()
+    {
+        return new Pen(EditingBorderBrush, 2);
+    }
+    Pen CreateResizePen()
+    {
+        return new Pen(ResizeGuideBrush, 1);
+    }
+    void UpdateThemePens()
+    {
+        fLinePen = CreateLinePen();
+        fCurrentPen = CreateCurrentPen();
+        fEditingPen = CreateEditingPen();
+        fResizePen = CreateResizePen();
+    }
     void Engine_Changed(object Sender, EventArgs Args)
     {
         if (fEngine != null && !fEngine.IsEditing)
@@ -970,15 +1082,15 @@ public class GroupGrid: Control
     {
         CloseActiveEditor();
         GroupGridInplaceEditorBase Editor = CreateCellEditor(Cell.Column);
-        Editor.Background = fEditingBrush;
+        Editor.Background = EditingBrush;
         if (Editor is GroupGridDateInplaceEditor DateEditor)
         {
-            DateEditor.Foreground = fTextBrush;
+            DateEditor.Foreground = TextBrush;
             DateEditor.Value = fEngine.GetValue(Cell.RowIndex, Cell.Column);
         }
         else if (Editor is GroupGridTextInplaceEditor TextEditor)
         {
-            TextEditor.Foreground = fTextBrush;
+            TextEditor.Foreground = TextBrush;
             TextEditor.Value = fCellEditText;
         }
         else if (Editor is GroupGridLookupInplaceEditor)
@@ -1743,16 +1855,16 @@ public class GroupGrid: Control
     }
     void DrawToolBar(DrawingContext Context, Rect Rect)
     {
-        DrawBand(Context, Rect, fToolBarBrush);
+        DrawBand(Context, Rect, ToolBarBrush);
 
         foreach ((GroupGridToolButton Button, Rect ButtonRect) in LayoutToolButtons(Rect.Width))
         {
             bool IsEnabled = IsToolButtonEnabled(Button);
             bool IsPointerOver = ReferenceEquals(fPointerOverToolButton, Button);
-            IBrush ButtonBrush = IsPointerOver && IsEnabled ? fToolButtonHoverBrush : fToolButtonBrush;
-            IBrush TextBrush = IsEnabled ? fTextBrush : fDisabledTextBrush;
+            IBrush ButtonBrush = IsPointerOver && IsEnabled ? ToolButtonHoverBrush : ToolButtonBrush;
+            IBrush ForegroundBrush = IsEnabled ? TextBrush : DisabledTextBrush;
             Context.DrawRectangle(ButtonBrush, fLinePen, ButtonRect, 3, 3);
-            DrawText(Context, Button.Text, ButtonRect, TextBrush, FontWeight.SemiBold, GroupGridCellHorizontalAlignment.Center);
+            DrawText(Context, Button.Text, ButtonRect, ForegroundBrush, FontWeight.SemiBold, GroupGridCellHorizontalAlignment.Center);
         }
     }
     Rect InsetRect(Rect Rect, double Value)
@@ -1805,7 +1917,7 @@ public class GroupGrid: Control
         if (ReferenceEquals(fEngine.SortColumn, Column) && fEngine.SortDirection != GroupGridSortDirection.None)
             TextRect = new Rect(Rect.X, Rect.Y, Math.Max(0, Rect.Width - 18), Rect.Height);
 
-        DrawText(Context, Text, TextRect, fTextBrush, FontWeight.SemiBold);
+        DrawText(Context, Text, TextRect, TextBrush, FontWeight.SemiBold);
         DrawSortGlyph(Context, Column, Rect);
     }
     void DrawSortGlyph(DrawingContext Context, GroupGridColumn Column, Rect Rect)
@@ -1836,7 +1948,7 @@ public class GroupGrid: Control
             GeometryContext.EndFigure(true);
         }
 
-        Context.DrawGeometry(fMutedTextBrush, null, Geometry);
+        Context.DrawGeometry(MutedTextBrush, null, Geometry);
     }
     void DrawFilterCell(DrawingContext Context, GroupGridColumn Column, Rect Rect, IBrush Brush)
     {
@@ -1845,11 +1957,11 @@ public class GroupGrid: Control
             ? fFilterEditText
             : fEngine.GetColumnFilter(Column);
         bool HasFilter = !string.IsNullOrEmpty(FilterText);
-        IBrush CellBrush = IsActive ? fActiveFilterBrush : HasFilter ? fFilteredCellBrush : Brush;
+        IBrush CellBrush = IsActive ? ActiveFilterBrush : HasFilter ? FilteredCellBrush : Brush;
         DrawBand(Context, Rect, CellBrush);
 
         if (!string.IsNullOrEmpty(FilterText))
-            DrawText(Context, FilterText, Rect, fMutedTextBrush);
+            DrawText(Context, FilterText, Rect, MutedTextBrush);
 
         if (IsActive)
         {
@@ -1862,7 +1974,7 @@ public class GroupGrid: Control
         double X = Rect.X + 4;
         if (!string.IsNullOrEmpty(Text))
         {
-            FormattedText FormattedText = CreateText(Text, fMutedTextBrush, Math.Max(0, Rect.Width - 8));
+            FormattedText FormattedText = CreateText(Text, MutedTextBrush, Math.Max(0, Rect.Width - 8));
             X += Math.Min(FormattedText.Width, Math.Max(0, Rect.Width - 10));
         }
 
@@ -1895,7 +2007,7 @@ public class GroupGrid: Control
             GeometryContext.EndFigure(true);
         }
 
-        Context.DrawGeometry(fMutedTextBrush, null, Geometry);
+        Context.DrawGeometry(MutedTextBrush, null, Geometry);
     }
     double DrawColumns(DrawingContext Context, double Y, double Height, double ContentWidth, IBrush Brush, bool DrawFilterText)
     {
@@ -1925,7 +2037,7 @@ public class GroupGrid: Control
     }
     void DrawGroupPanel(DrawingContext Context, double Y, double Height, double Width)
     {
-        DrawBand(Context, new Rect(0, Y, Width, Height), fGroupPanelBrush);
+        DrawBand(Context, new Rect(0, Y, Width, Height), GroupPanelBrush);
 
         double X = 6;
         foreach (GroupGridColumn Column in fEngine.GroupColumns)
@@ -1933,8 +2045,8 @@ public class GroupGrid: Control
             string Text = string.IsNullOrWhiteSpace(Column.Header) ? Column.Name : Column.Header;
             double ItemWidth = Math.Max(80, Text.Length * 8 + 24);
             Rect Rect = new(X, Y + 5, ItemWidth, Math.Max(0, Height - 10));
-            Context.DrawRectangle(fHeaderBrush, fLinePen, Rect, 3, 3);
-            DrawText(Context, Text, Rect, fTextBrush, FontWeight.SemiBold);
+            Context.DrawRectangle(HeaderBrush, fLinePen, Rect, 3, 3);
+            DrawText(Context, Text, Rect, TextBrush, FontWeight.SemiBold);
             X += ItemWidth + 6;
         }
     }
@@ -1997,7 +2109,7 @@ public class GroupGrid: Control
                     if (!string.IsNullOrWhiteSpace(Text))
                     {
                         Rect CellRect = new(X, RowRect.Y, Width, RowRect.Height);
-                        DrawText(Context, Text, CellRect, fMutedTextBrush, FontWeight.SemiBold, Column.HorizontalAlignment);
+                        DrawText(Context, Text, CellRect, MutedTextBrush, FontWeight.SemiBold, Column.HorizontalAlignment);
                     }
                 }
 
@@ -2007,7 +2119,7 @@ public class GroupGrid: Control
     }
     void DrawGroupRow(DrawingContext Context, Rect RowRect, int VisibleNodeIndex, GroupGridRowInfo RowInfo)
     {
-        DrawBand(Context, RowRect, fGroupRowBrush);
+        DrawBand(Context, RowRect, GroupRowBrush);
 
         double X = Math.Max(0, RowInfo.Level) * fEngine.LayoutMetrics.GroupIndentWidth;
         Rect ExpanderRect = new(X, RowRect.Y, fEngine.LayoutMetrics.GroupExpanderWidth, RowRect.Height);
@@ -2016,16 +2128,16 @@ public class GroupGrid: Control
             HeaderRight = Math.Min(HeaderRight, GetFirstCollapsedGroupSummaryX(VisibleNodeIndex, RowRect.Width));
 
         DrawExpander(Context, ExpanderRect, RowInfo.IsExpanded);
-        DrawText(Context, fEngine.GetGroupHeaderText(VisibleNodeIndex), new Rect(ExpanderRect.Right, RowRect.Y, Math.Max(0, HeaderRight - ExpanderRect.Right), RowRect.Height), fTextBrush, FontWeight.SemiBold);
+        DrawText(Context, fEngine.GetGroupHeaderText(VisibleNodeIndex), new Rect(ExpanderRect.Right, RowRect.Y, Math.Max(0, HeaderRight - ExpanderRect.Right), RowRect.Height), TextBrush, FontWeight.SemiBold);
 
         if (!RowInfo.IsExpanded)
             DrawCollapsedGroupSummaries(Context, RowRect, VisibleNodeIndex);
     }
     void DrawValueRow(DrawingContext Context, Rect RowRect, int VisibleNodeIndex, GroupGridRowInfo RowInfo)
     {
-        IBrush RowBrush = RowInfo.IsGroupSummary ? fGroupSummaryBrush : fBackgroundBrush;
+        IBrush RowBrush = RowInfo.IsGroupSummary ? GroupSummaryBrush : GridBackgroundBrush;
         if (IsSelectedRow(RowInfo))
-            RowBrush = fSelectedBrush;
+            RowBrush = SelectedBrush;
 
         DrawBand(Context, RowRect, RowBrush);
 
@@ -2043,15 +2155,15 @@ public class GroupGrid: Control
                     Rect CellRect = new(X, RowRect.Y, Width, RowRect.Height);
                     IBrush CellBrush = RowBrush;
                     if (IsSelectedRow(RowInfo))
-                        CellBrush = fSelectedBrush;
+                        CellBrush = SelectedBrush;
                     if (IsCurrentCell(RowInfo, Column))
-                        CellBrush = fCurrentBrush;
+                        CellBrush = CurrentBrush;
                     if (IsEditingCell(RowInfo, Column))
-                        CellBrush = fEditingBrush;
+                        CellBrush = EditingBrush;
 
                     Context.DrawRectangle(CellBrush, fLinePen, CellRect);
                     string Text = IsEditingCell(RowInfo, Column) ? fCellEditText : fEngine.GetDisplayText(VisibleNodeIndex, Column);
-                    DrawText(Context, Text, CellRect, RowInfo.IsGroupSummary ? fMutedTextBrush : fTextBrush, FontWeight.Normal, Column.HorizontalAlignment);
+                    DrawText(Context, Text, CellRect, RowInfo.IsGroupSummary ? MutedTextBrush : TextBrush, FontWeight.Normal, Column.HorizontalAlignment);
 
                     if (IsCurrentCell(RowInfo, Column) && !(IsEditingCell(RowInfo, Column) && fActiveEditor != null))
                         Context.DrawRectangle(null, fCurrentPen, CellRect);
@@ -2073,8 +2185,8 @@ public class GroupGrid: Control
 
         Rect TrackRect = GetVerticalScrollTrackRect();
         Rect ThumbRect = GetVerticalScrollThumbRect();
-        Context.DrawRectangle(fScrollBarTrackBrush, fLinePen, TrackRect);
-        Context.DrawRectangle(fScrollBarThumbBrush, null, ThumbRect, 4, 4);
+        Context.DrawRectangle(ScrollBarTrackBrush, fLinePen, TrackRect);
+        Context.DrawRectangle(ScrollBarThumbBrush, null, ThumbRect, 4, 4);
     }
     void DrawHorizontalScrollBar(DrawingContext Context)
     {
@@ -2083,11 +2195,11 @@ public class GroupGrid: Control
 
         Rect TrackRect = GetHorizontalScrollTrackRect();
         Rect ThumbRect = GetHorizontalScrollThumbRect();
-        Context.DrawRectangle(fScrollBarTrackBrush, fLinePen, TrackRect);
-        Context.DrawRectangle(fScrollBarThumbBrush, null, ThumbRect, 4, 4);
+        Context.DrawRectangle(ScrollBarTrackBrush, fLinePen, TrackRect);
+        Context.DrawRectangle(ScrollBarThumbBrush, null, ThumbRect, 4, 4);
 
         if (HasVerticalScrollBar())
-            DrawBand(Context, new Rect(TrackRect.Right, TrackRect.Y, Bounds.Width - TrackRect.Right, TrackRect.Height), fScrollBarTrackBrush);
+            DrawBand(Context, new Rect(TrackRect.Right, TrackRect.Y, Bounds.Width - TrackRect.Right, TrackRect.Height), ScrollBarTrackBrush);
     }
     void DrawColumnResizeGuide(DrawingContext Context)
     {
@@ -2129,7 +2241,7 @@ public class GroupGrid: Control
         double X = fColumnDragCurrentX - (Width / 2);
         double Y = fColumnDragCurrentY - (Height / 2);
         Rect Rect = new(X, Y, Width, Height);
-        DrawColumnHeaderCell(Context, fColumnDragColumn, Rect, fColumnDragBrush);
+        DrawColumnHeaderCell(Context, fColumnDragColumn, Rect, ColumnDragBrush);
     }
     void DrawFooter(DrawingContext Context, double Y, double Height, double ContentWidth)
     {
@@ -2145,8 +2257,8 @@ public class GroupGrid: Control
                 if (X + ColumnWidth > 0)
                 {
                     Rect Rect = new(X, Y, ColumnWidth, Height);
-                    DrawBand(Context, Rect, fFooterBrush);
-                    DrawText(Context, fEngine.GetTotalSummaryText(Column), Rect, fMutedTextBrush, FontWeight.SemiBold);
+                    DrawBand(Context, Rect, FooterBrush);
+                    DrawText(Context, fEngine.GetTotalSummaryText(Column), Rect, MutedTextBrush, FontWeight.SemiBold);
                 }
 
                 X += ColumnWidth;
@@ -2525,6 +2637,27 @@ public class GroupGrid: Control
 
     // ● protected methods
     /// <inheritdoc />
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs Args)
+    {
+        base.OnPropertyChanged(Args);
+
+        if (Args.Property == GridLineBrushProperty
+            || Args.Property == CurrentBorderBrushProperty
+            || Args.Property == EditingBorderBrushProperty
+            || Args.Property == ResizeGuideBrushProperty)
+            UpdateThemePens();
+
+        if (Args.Property == EditingBrushProperty && fActiveEditor != null)
+            fActiveEditor.Background = EditingBrush;
+        if (Args.Property == TextBrushProperty && fActiveEditor != null)
+        {
+            if (fActiveEditor is GroupGridDateInplaceEditor DateEditor)
+                DateEditor.Foreground = TextBrush;
+            else if (fActiveEditor is GroupGridTextInplaceEditor TextEditor)
+                TextEditor.Foreground = TextBrush;
+        }
+    }
+    /// <inheritdoc />
     protected override void OnPointerPressed(PointerPressedEventArgs Args)
     {
         base.OnPointerPressed(Args);
@@ -2725,12 +2858,42 @@ public class GroupGrid: Control
     }
 
     // ● constructor
+    static GroupGrid()
+    {
+        AffectsRender<GroupGrid>(
+            GridBackgroundBrushProperty,
+            ToolBarBrushProperty,
+            ToolButtonBrushProperty,
+            ToolButtonHoverBrushProperty,
+            DisabledTextBrushProperty,
+            GroupPanelBrushProperty,
+            HeaderBrushProperty,
+            FilterBrushProperty,
+            FilteredCellBrushProperty,
+            ActiveFilterBrushProperty,
+            GroupRowBrushProperty,
+            GroupSummaryBrushProperty,
+            SelectedBrushProperty,
+            CurrentBrushProperty,
+            EditingBrushProperty,
+            FooterBrushProperty,
+            TextBrushProperty,
+            MutedTextBrushProperty,
+            ScrollBarTrackBrushProperty,
+            ScrollBarThumbBrushProperty,
+            ColumnDragBrushProperty,
+            GridLineBrushProperty,
+            CurrentBorderBrushProperty,
+            EditingBorderBrushProperty,
+            ResizeGuideBrushProperty);
+    }
     /// <summary>
     /// Initializes a new instance of the <see cref="GroupGrid"/> class.
     /// </summary>
     public GroupGrid()
     {
         Focusable = true;
+        UpdateThemePens();
         fToolButtons.CollectionChanged += ToolButtons_CollectionChanged;
         AddStandardToolButtons();
         Engine = new GroupGridEngine();
@@ -3263,7 +3426,7 @@ public class GroupGrid: Control
         base.Render(Context);
 
         Rect BoundsRect = new(0, 0, Bounds.Width, Bounds.Height);
-        DrawBand(Context, BoundsRect, fBackgroundBrush);
+        DrawBand(Context, BoundsRect, GridBackgroundBrush);
 
         if (fEngine == null)
             return;
@@ -3280,23 +3443,23 @@ public class GroupGrid: Control
         {
             DrawGroupPanel(Context, Y, fEngine.LayoutMetrics.GroupPanelHeight, ContentWidth);
             if (HasVerticalScrollBar())
-                DrawBand(Context, new Rect(ContentWidth, Y, Bounds.Width - ContentWidth, fEngine.LayoutMetrics.GroupPanelHeight), fGroupPanelBrush);
+                DrawBand(Context, new Rect(ContentWidth, Y, Bounds.Width - ContentWidth, fEngine.LayoutMetrics.GroupPanelHeight), GroupPanelBrush);
             Y += fEngine.LayoutMetrics.GroupPanelHeight;
         }
 
         if (fIsColumnHeadersVisible)
         {
-            DrawColumns(Context, Y, fEngine.LayoutMetrics.ColumnHeaderHeight, ContentWidth, fHeaderBrush, false);
+            DrawColumns(Context, Y, fEngine.LayoutMetrics.ColumnHeaderHeight, ContentWidth, HeaderBrush, false);
             if (HasVerticalScrollBar())
-                DrawBand(Context, new Rect(ContentWidth, Y, Bounds.Width - ContentWidth, fEngine.LayoutMetrics.ColumnHeaderHeight), fHeaderBrush);
+                DrawBand(Context, new Rect(ContentWidth, Y, Bounds.Width - ContentWidth, fEngine.LayoutMetrics.ColumnHeaderHeight), HeaderBrush);
             Y += fEngine.LayoutMetrics.ColumnHeaderHeight;
         }
 
         if (fIsFilterPanelVisible)
         {
-            DrawColumns(Context, Y, fEngine.LayoutMetrics.FilterRowHeight, ContentWidth, fFilterBrush, true);
+            DrawColumns(Context, Y, fEngine.LayoutMetrics.FilterRowHeight, ContentWidth, FilterBrush, true);
             if (HasVerticalScrollBar())
-                DrawBand(Context, new Rect(ContentWidth, Y, Bounds.Width - ContentWidth, fEngine.LayoutMetrics.FilterRowHeight), fFilterBrush);
+                DrawBand(Context, new Rect(ContentWidth, Y, Bounds.Width - ContentWidth, fEngine.LayoutMetrics.FilterRowHeight), FilterBrush);
             Y += fEngine.LayoutMetrics.FilterRowHeight;
         }
 
@@ -3309,7 +3472,7 @@ public class GroupGrid: Control
         {
             DrawFooter(Context, Y, fEngine.LayoutMetrics.FooterSummaryHeight, ContentWidth);
             if (HasVerticalScrollBar())
-                DrawBand(Context, new Rect(ContentWidth, Y, Bounds.Width - ContentWidth, fEngine.LayoutMetrics.FooterSummaryHeight), fFooterBrush);
+                DrawBand(Context, new Rect(ContentWidth, Y, Bounds.Width - ContentWidth, fEngine.LayoutMetrics.FooterSummaryHeight), FooterBrush);
             Y += fEngine.LayoutMetrics.FooterSummaryHeight;
         }
 
@@ -3414,6 +3577,106 @@ public class GroupGrid: Control
     /// Gets the layout metrics used by the grid.
     /// </summary>
     public GroupGridLayoutMetrics LayoutMetrics => fEngine.LayoutMetrics;
+    /// <summary>
+    /// Gets or sets the grid body background brush.
+    /// </summary>
+    public IBrush GridBackgroundBrush { get => GetValue(GridBackgroundBrushProperty); set => SetValue(GridBackgroundBrushProperty, value); }
+    /// <summary>
+    /// Gets or sets the toolbar background brush.
+    /// </summary>
+    public IBrush ToolBarBrush { get => GetValue(ToolBarBrushProperty); set => SetValue(ToolBarBrushProperty, value); }
+    /// <summary>
+    /// Gets or sets the toolbar button background brush.
+    /// </summary>
+    public IBrush ToolButtonBrush { get => GetValue(ToolButtonBrushProperty); set => SetValue(ToolButtonBrushProperty, value); }
+    /// <summary>
+    /// Gets or sets the toolbar button hover background brush.
+    /// </summary>
+    public IBrush ToolButtonHoverBrush { get => GetValue(ToolButtonHoverBrushProperty); set => SetValue(ToolButtonHoverBrushProperty, value); }
+    /// <summary>
+    /// Gets or sets the disabled text brush.
+    /// </summary>
+    public IBrush DisabledTextBrush { get => GetValue(DisabledTextBrushProperty); set => SetValue(DisabledTextBrushProperty, value); }
+    /// <summary>
+    /// Gets or sets the group panel background brush.
+    /// </summary>
+    public IBrush GroupPanelBrush { get => GetValue(GroupPanelBrushProperty); set => SetValue(GroupPanelBrushProperty, value); }
+    /// <summary>
+    /// Gets or sets the column header background brush.
+    /// </summary>
+    public IBrush HeaderBrush { get => GetValue(HeaderBrushProperty); set => SetValue(HeaderBrushProperty, value); }
+    /// <summary>
+    /// Gets or sets the filter row background brush.
+    /// </summary>
+    public IBrush FilterBrush { get => GetValue(FilterBrushProperty); set => SetValue(FilterBrushProperty, value); }
+    /// <summary>
+    /// Gets or sets the filtered cell background brush.
+    /// </summary>
+    public IBrush FilteredCellBrush { get => GetValue(FilteredCellBrushProperty); set => SetValue(FilteredCellBrushProperty, value); }
+    /// <summary>
+    /// Gets or sets the active filter cell background brush.
+    /// </summary>
+    public IBrush ActiveFilterBrush { get => GetValue(ActiveFilterBrushProperty); set => SetValue(ActiveFilterBrushProperty, value); }
+    /// <summary>
+    /// Gets or sets the group row background brush.
+    /// </summary>
+    public IBrush GroupRowBrush { get => GetValue(GroupRowBrushProperty); set => SetValue(GroupRowBrushProperty, value); }
+    /// <summary>
+    /// Gets or sets the group summary row background brush.
+    /// </summary>
+    public IBrush GroupSummaryBrush { get => GetValue(GroupSummaryBrushProperty); set => SetValue(GroupSummaryBrushProperty, value); }
+    /// <summary>
+    /// Gets or sets the selected row or cell background brush.
+    /// </summary>
+    public IBrush SelectedBrush { get => GetValue(SelectedBrushProperty); set => SetValue(SelectedBrushProperty, value); }
+    /// <summary>
+    /// Gets or sets the current cell background brush.
+    /// </summary>
+    public IBrush CurrentBrush { get => GetValue(CurrentBrushProperty); set => SetValue(CurrentBrushProperty, value); }
+    /// <summary>
+    /// Gets or sets the editing cell background brush.
+    /// </summary>
+    public IBrush EditingBrush { get => GetValue(EditingBrushProperty); set => SetValue(EditingBrushProperty, value); }
+    /// <summary>
+    /// Gets or sets the footer summary background brush.
+    /// </summary>
+    public IBrush FooterBrush { get => GetValue(FooterBrushProperty); set => SetValue(FooterBrushProperty, value); }
+    /// <summary>
+    /// Gets or sets the primary text brush.
+    /// </summary>
+    public IBrush TextBrush { get => GetValue(TextBrushProperty); set => SetValue(TextBrushProperty, value); }
+    /// <summary>
+    /// Gets or sets the muted text brush.
+    /// </summary>
+    public IBrush MutedTextBrush { get => GetValue(MutedTextBrushProperty); set => SetValue(MutedTextBrushProperty, value); }
+    /// <summary>
+    /// Gets or sets the scrollbar track brush.
+    /// </summary>
+    public IBrush ScrollBarTrackBrush { get => GetValue(ScrollBarTrackBrushProperty); set => SetValue(ScrollBarTrackBrushProperty, value); }
+    /// <summary>
+    /// Gets or sets the scrollbar thumb brush.
+    /// </summary>
+    public IBrush ScrollBarThumbBrush { get => GetValue(ScrollBarThumbBrushProperty); set => SetValue(ScrollBarThumbBrushProperty, value); }
+    /// <summary>
+    /// Gets or sets the column drag ghost brush.
+    /// </summary>
+    public IBrush ColumnDragBrush { get => GetValue(ColumnDragBrushProperty); set => SetValue(ColumnDragBrushProperty, value); }
+    /// <summary>
+    /// Gets or sets the grid line brush.
+    /// </summary>
+    public IBrush GridLineBrush { get => GetValue(GridLineBrushProperty); set => SetValue(GridLineBrushProperty, value); }
+    /// <summary>
+    /// Gets or sets the current cell border brush.
+    /// </summary>
+    public IBrush CurrentBorderBrush { get => GetValue(CurrentBorderBrushProperty); set => SetValue(CurrentBorderBrushProperty, value); }
+    /// <summary>
+    /// Gets or sets the editing cell border brush.
+    /// </summary>
+    public IBrush EditingBorderBrush { get => GetValue(EditingBorderBrushProperty); set => SetValue(EditingBorderBrushProperty, value); }
+    /// <summary>
+    /// Gets or sets the resize and drop guide brush.
+    /// </summary>
+    public IBrush ResizeGuideBrush { get => GetValue(ResizeGuideBrushProperty); set => SetValue(ResizeGuideBrushProperty, value); }
     /// <summary>
     /// Gets or sets a value indicating whether the toolbar band is visible.
     /// </summary>
