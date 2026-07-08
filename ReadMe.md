@@ -1,4 +1,4 @@
-# Avalonia.Controls.Extras
+# Tripous.Avalonia.Controls
 
 Reusable Avalonia controls with no external dependencies.
 

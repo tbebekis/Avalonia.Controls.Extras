@@ -14,7 +14,7 @@ The current v1 status, implemented feature list, and next hardening items are tr
 
 `GroupGrid` is a reusable Avalonia grid control for dense data-entry and business application screens.
 
-The control belongs to `Avalonia.Controls.Extras` and must remain independent from Tripous.
+The control belongs to `Tripous.Avalonia.Controls` and must remain independent from Tripous.
 
 The old JavaScript `tp.Grid` in `Material/WebDesk/wwwroot/tp/js/tp-Grid.js` is reference material for behavior and API ideas, not code to port directly.
 

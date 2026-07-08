@@ -25,7 +25,7 @@ The important split is:
 ```xml
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:controls="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.Extras">
+        xmlns:controls="clr-namespace:Avalonia.Controls;assembly=Tripous.Avalonia.Controls">
     <controls:GroupGrid x:Name="Grid" />
 </Window>
 ```
