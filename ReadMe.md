@@ -123,6 +123,7 @@ Current implemented v1 feature map for `GroupGrid`.
 - Single selected cell/row.
 - Keyboard navigation.
 - Mouse selection.
+- Public control-level `HitTest(Point)` and `CellPointerPressed` event for cell context menu integrations.
 - Group expand/collapse by mouse.
 - Column resize by dragging header edge.
 - Column reorder by dragging headers.

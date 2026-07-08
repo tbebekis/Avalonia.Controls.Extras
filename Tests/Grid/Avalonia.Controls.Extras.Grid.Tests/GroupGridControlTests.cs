@@ -202,6 +202,36 @@ public class GroupGridControlTests
         Assert.Equal(default, Grid.LastDropDownRect);
     }
     /// <summary>
+    /// Verifies cell pointer event args expose hit-test, row, column, cell, and handled state.
+    /// </summary>
+    [Fact]
+    public void GroupGridCellPointerEventArgs_WithHitTest_ExposeCellContext()
+    {
+        GroupGridColumn Column = new GroupGridTextColumn { Name = nameof(GridTestRow.Name) };
+        GridTestRow Row = new() { Name = "Alpha" };
+        GroupGridHitTestResult Hit = new()
+        {
+            Kind = GroupGridHitTestKind.BodyCell,
+            RowKind = GroupGridRowKind.DataRow,
+            RowIndex = 2,
+            Column = Column,
+        };
+        GroupGridCellPointerEventArgs Args = new(Hit, Row, new Point(10, 20), null, true);
+
+        Assert.Same(Hit, Args.HitTest);
+        Assert.Equal(new GroupGridCell(2, Column), Args.Cell);
+        Assert.Same(Column, Args.Column);
+        Assert.Equal(2, Args.RowIndex);
+        Assert.Same(Row, Args.Row);
+        Assert.Equal(new Point(10, 20), Args.Position);
+        Assert.True(Args.IsRightButton);
+        Assert.False(Args.Handled);
+
+        Args.Handled = true;
+
+        Assert.True(Args.Handled);
+    }
+    /// <summary>
     /// Verifies settings load returns false when the full file path does not exist.
     /// </summary>
     [Fact]

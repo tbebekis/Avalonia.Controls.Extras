@@ -1145,6 +1145,14 @@ public class GroupGrid: Control, IGroupGridDropDownEditorHost
         fEngine.SetValue(Cell.RowIndex, Cell.Column, !IsChecked);
         return true;
     }
+    object GetAdapterRow(int RowIndex)
+    {
+        IGroupGridDataAdapter Adapter = DataAdapter;
+        if (Adapter == null || RowIndex < 0 || RowIndex >= Adapter.RowCount)
+            return null;
+
+        return Adapter.GetRow(RowIndex);
+    }
     string GetCellEditText(GroupGridCell Cell)
     {
         return Cell.IsEmpty
@@ -1847,7 +1855,7 @@ public class GroupGrid: Control, IGroupGridDropDownEditorHost
     // ● context menu helpers
     bool ShowColumnContextMenu(Point Point)
     {
-        GroupGridHitTestResult Hit = HitTest(Point);
+        GroupGridHitTestResult Hit = HitTestCore(Point);
         if (Hit == null || Hit.Column == null || Hit.Kind != GroupGridHitTestKind.ColumnHeader)
             return false;
 
@@ -1892,7 +1900,7 @@ public class GroupGrid: Control, IGroupGridDropDownEditorHost
     }
     bool ShowSummaryContextMenu(Point Point)
     {
-        GroupGridHitTestResult Hit = HitTest(Point);
+        GroupGridHitTestResult Hit = HitTestCore(Point);
         if (Hit == null || Hit.Column == null)
             return false;
 
@@ -2682,6 +2690,20 @@ public class GroupGrid: Control, IGroupGridDropDownEditorHost
                 BeginCellEdit(false, null);
         }
     }
+    bool RaiseCellPointerPressed(GroupGridHitTestResult Hit, Point Point, PointerPressedEventArgs Args, bool IsRightButton)
+    {
+        if (Hit == null || Hit.Kind != GroupGridHitTestKind.BodyCell || Hit.RowKind != GroupGridRowKind.DataRow || !Hit.HasCell)
+            return false;
+
+        SetFilterEditColumn(null);
+        fEngine.SetCurrentCell(Hit.Cell);
+        fEngine.SetSelectedCell(Hit.Cell);
+        GroupGridCellPointerEventArgs CellArgs = new(Hit, GetAdapterRow(Hit.RowIndex), Point, Args, IsRightButton);
+        CellPointerPressed?.Invoke(this, CellArgs);
+        if (CellArgs.Handled)
+            Args.Handled = true;
+        return CellArgs.Handled || Args.Handled;
+    }
 
     // ● pointer handling helpers
     bool HandleVerticalScrollPointerPressed(PointerPressedEventArgs Args, Point Point)
@@ -2730,7 +2752,7 @@ public class GroupGrid: Control, IGroupGridDropDownEditorHost
     }
     bool HandleColumnResizePointerPressed(PointerPressedEventArgs Args, Point Point)
     {
-        GroupGridHitTestResult Hit = HitTest(Point);
+        GroupGridHitTestResult Hit = HitTestCore(Point);
         if (Hit == null || Hit.Kind != GroupGridHitTestKind.ColumnResizer || Hit.Column == null)
             return false;
 
@@ -2780,7 +2802,7 @@ public class GroupGrid: Control, IGroupGridDropDownEditorHost
             return true;
         }
 
-        GroupGridHitTestResult Hit = HitTest(Point);
+        GroupGridHitTestResult Hit = HitTestCore(Point);
         if (Hit == null || Hit.Kind != GroupGridHitTestKind.ColumnHeader || Hit.Column == null || !Hit.Column.CanUserReorder)
             return false;
 
@@ -2875,7 +2897,7 @@ public class GroupGrid: Control, IGroupGridDropDownEditorHost
             return;
         }
 
-        GroupGridHitTestResult Hit = HitTest(Point);
+        GroupGridHitTestResult Hit = HitTestCore(Point);
         Cursor = Hit != null && Hit.Kind == GroupGridHitTestKind.ColumnResizer
             ? new Cursor(StandardCursorType.SizeWestEast)
             : null;
@@ -2935,7 +2957,7 @@ public class GroupGrid: Control, IGroupGridDropDownEditorHost
         EngineOffset += MetricHeight;
         return true;
     }
-    GroupGridHitTestResult HitTest(Point Point)
+    GroupGridHitTestResult HitTestCore(Point Point)
     {
         double X = Point.X;
         double Y = Point.Y;
@@ -3070,6 +3092,10 @@ public class GroupGrid: Control, IGroupGridDropDownEditorHost
         if (PointProperties.Properties.IsRightButtonPressed)
         {
             Point MenuPoint = Args.GetPosition(this);
+            GroupGridHitTestResult Hit = HitTestCore(MenuPoint);
+            if (RaiseCellPointerPressed(Hit, MenuPoint, Args, IsRightButton: true))
+                return;
+
             if (ShowColumnContextMenu(MenuPoint) || ShowSummaryContextMenu(MenuPoint))
                 Args.Handled = true;
             return;
@@ -3107,7 +3133,7 @@ public class GroupGrid: Control, IGroupGridDropDownEditorHost
             return;
         }
 
-        HandleHitTest(HitTest(Point));
+        HandleHitTest(HitTestCore(Point));
         Args.Handled = true;
     }
     /// <inheritdoc />
@@ -4060,6 +4086,15 @@ public class GroupGrid: Control, IGroupGridDropDownEditorHost
     {
         return fEngine.SelectCurrentCell();
     }
+    /// <summary>
+    /// Performs a control-level hit test using visible bands, scrollbars, fixed areas, and horizontal scroll offset.
+    /// </summary>
+    /// <param name="Point">The point in grid coordinates.</param>
+    /// <returns>The hit-test result.</returns>
+    public GroupGridHitTestResult HitTest(Point Point)
+    {
+        return HitTestCore(Point);
+    }
 
     // ● editing API
     /// <summary>
@@ -4504,12 +4539,7 @@ public class GroupGrid: Control, IGroupGridDropDownEditorHost
     {
         get
         {
-            int RowIndex = CurrentRowIndex;
-            IGroupGridDataAdapter Adapter = DataAdapter;
-            if (Adapter == null || RowIndex < 0 || RowIndex >= Adapter.RowCount)
-                return null;
-
-            return Adapter.GetRow(RowIndex);
+            return GetAdapterRow(CurrentRowIndex);
         }
     }
     /// <summary>
@@ -4620,6 +4650,10 @@ public class GroupGrid: Control, IGroupGridDropDownEditorHost
     /// Occurs when cell editing is canceled.
     /// </summary>
     public event EventHandler<GroupGridCellEditEventArgs> EditCanceled;
+    /// <summary>
+    /// Occurs when a pointer press targets a data body cell.
+    /// </summary>
+    public event EventHandler<GroupGridCellPointerEventArgs> CellPointerPressed;
 
     // ● command events
     /// <summary>
